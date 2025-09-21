@@ -76,8 +76,8 @@ class SecurityHeadersMiddleware
             "base-uri 'self'",
             "form-action 'self'",
             "frame-ancestors 'none'",
-            "upgrade-insecure-requests",
-            "block-all-mixed-content",
+            'upgrade-insecure-requests',
+            'block-all-mixed-content',
         ];
 
         $response->headers->set('Content-Security-Policy', implode('; ', $csp));
@@ -117,7 +117,7 @@ class SecurityHeadersMiddleware
 
         $permissionsPolicy = [];
         foreach ($permissions as $feature => $allowlist) {
-            $permissionsPolicy[] = $feature . '=' . $allowlist;
+            $permissionsPolicy[] = $feature.'='.$allowlist;
         }
 
         $response->headers->set('Permissions-Policy', implode(', ', $permissionsPolicy));

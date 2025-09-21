@@ -3,8 +3,8 @@
 namespace Shared\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class JsonResponseMiddleware
@@ -12,28 +12,26 @@ class JsonResponseMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
      * @return mixed
      */
     public function handle(Request $request, Closure $next)
     {
         try {
             $response = $next($request);
-            
+
             // Ensure all responses are JSON for API routes
             if ($request->is('api/*')) {
                 return $this->ensureJsonResponse($response);
             }
-            
+
             return $response;
         } catch (\Exception $e) {
-            Log::error('JsonResponseMiddleware error: ' . $e->getMessage(), [
+            Log::error('JsonResponseMiddleware error: '.$e->getMessage(), [
                 'exception' => $e,
                 'url' => $request->fullUrl(),
                 'method' => $request->method(),
             ]);
-            
+
             return $this->createErrorResponse($e);
         }
     }
@@ -54,7 +52,7 @@ class JsonResponseMiddleware
                 'success' => false,
                 'message' => 'Invalid request format',
                 'error_code' => 'INVALID_REQUEST',
-                'details' => 'Request must be properly formatted JSON'
+                'details' => 'Request must be properly formatted JSON',
             ], 400);
         }
 
@@ -62,14 +60,14 @@ class JsonResponseMiddleware
         if (is_string($response)) {
             return response()->json([
                 'success' => true,
-                'data' => $response
+                'data' => $response,
             ]);
         }
 
         // For other response types, convert to JSON
         return response()->json([
             'success' => true,
-            'data' => $response
+            'data' => $response,
         ]);
     }
 
@@ -78,8 +76,8 @@ class JsonResponseMiddleware
      */
     protected function isHtmlResponse(string $response): bool
     {
-        return str_contains($response, '<!DOCTYPE html>') || 
-               str_contains($response, '<html') || 
+        return str_contains($response, '<!DOCTYPE html>') ||
+               str_contains($response, '<html') ||
                str_contains($response, '<head>');
     }
 
@@ -119,7 +117,7 @@ class JsonResponseMiddleware
             'success' => false,
             'message' => $message,
             'error_code' => $errorCode,
-            'details' => config('app.debug') ? $e->getMessage() : 'An error occurred while processing your request'
+            'details' => config('app.debug') ? $e->getMessage() : 'An error occurred while processing your request',
         ], $statusCode);
     }
 }

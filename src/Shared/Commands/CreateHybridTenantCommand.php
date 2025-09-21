@@ -2,11 +2,11 @@
 
 namespace Shared\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Shared\Services\HybridDatabaseService;
 use Shared\Services\HybridMigrationService;
-use Illuminate\Support\Facades\DB;
-use Exception;
 
 class CreateHybridTenantCommand extends Command
 {
@@ -34,22 +34,24 @@ class CreateHybridTenantCommand extends Command
             $force = $this->option('force');
 
             $this->info("🚀 Creating hybrid tenant: {$name} ({$domain})");
-            $this->info("📊 Services: " . implode(', ', $services));
+            $this->info('📊 Services: '.implode(', ', $services));
 
             // Validate services
             $validServices = $this->hybridDatabaseService->getAllServices();
             $invalidServices = array_diff($services, $validServices);
-            
-            if (!empty($invalidServices)) {
-                $this->error("❌ Invalid services: " . implode(', ', $invalidServices));
-                $this->info("✅ Valid services: " . implode(', ', $validServices));
+
+            if (! empty($invalidServices)) {
+                $this->error('❌ Invalid services: '.implode(', ', $invalidServices));
+                $this->info('✅ Valid services: '.implode(', ', $validServices));
+
                 return 1;
             }
 
             // Check if tenant already exists
             $existingTenant = $this->hybridDatabaseService->getTenant($domain);
-            if ($existingTenant && !$force) {
+            if ($existingTenant && ! $force) {
                 $this->error("❌ Tenant with domain '{$domain}' already exists. Use --force to override.");
+
                 return 1;
             }
 
@@ -65,7 +67,7 @@ class CreateHybridTenantCommand extends Command
             // Run seeders
             $this->runServiceSeeders($tenantId, $services);
 
-            $this->info("✅ Hybrid tenant created successfully!");
+            $this->info('✅ Hybrid tenant created successfully!');
             $this->table(['Property', 'Value'], [
                 ['Tenant ID', $tenantId],
                 ['Name', $name],
@@ -77,21 +79,22 @@ class CreateHybridTenantCommand extends Command
             return 0;
 
         } catch (Exception $e) {
-            $this->error("❌ Failed to create hybrid tenant: " . $e->getMessage());
-            $this->error("📍 " . $e->getFile() . ':' . $e->getLine());
+            $this->error('❌ Failed to create hybrid tenant: '.$e->getMessage());
+            $this->error('📍 '.$e->getFile().':'.$e->getLine());
+
             return 1;
         }
     }
 
     private function createTenantRecord(string $name, string $domain, bool $force): string
     {
-        $this->info("📝 Creating tenant record in central database...");
+        $this->info('📝 Creating tenant record in central database...');
 
         if ($force) {
             // Delete existing tenant and all its databases
             $existingTenant = $this->hybridDatabaseService->getTenant($domain);
             if ($existingTenant) {
-                $this->warn("🗑️  Removing existing tenant and databases...");
+                $this->warn('🗑️  Removing existing tenant and databases...');
                 $this->hybridDatabaseService->dropTenantDatabases($existingTenant);
                 DB::connection('pgsql')->table('tenants')->where('domain', $domain)->delete();
             }
@@ -111,12 +114,13 @@ class CreateHybridTenantCommand extends Command
         ]);
 
         $this->info("✅ Tenant record created: {$tenantId}");
+
         return $tenantId;
     }
 
     private function createServiceDatabases(string $tenantId, array $services): void
     {
-        $this->info("🗄️  Creating service databases...");
+        $this->info('🗄️  Creating service databases...');
 
         $tenant = [
             'id' => $tenantId,
@@ -126,26 +130,26 @@ class CreateHybridTenantCommand extends Command
 
         foreach ($services as $service) {
             $this->info("  📊 Creating {$service} database...");
-            
+
             $databaseName = "tenant_{$tenantId}_{$service}";
-            
+
             // Create database
             DB::statement("CREATE DATABASE \"{$databaseName}\"");
-            
+
             // Create service-specific user
             $username = "tenant_{$tenantId}_{$service}";
             $password = $this->generateServicePassword($tenantId, $service);
-            
+
             DB::statement("CREATE USER \"{$username}\" WITH PASSWORD '{$password}'");
             DB::statement("GRANT ALL PRIVILEGES ON DATABASE \"{$databaseName}\" TO \"{$username}\"");
-            
+
             $this->info("    ✅ Database created: {$databaseName}");
         }
     }
 
     private function runServiceMigrations(string $tenantId, array $services): void
     {
-        $this->info("🔄 Running service migrations...");
+        $this->info('🔄 Running service migrations...');
 
         $tenant = [
             'id' => $tenantId,
@@ -155,12 +159,12 @@ class CreateHybridTenantCommand extends Command
 
         foreach ($services as $service) {
             $this->info("  📊 Running {$service} migrations...");
-            
+
             try {
                 $this->hybridMigrationService->runServiceMigrations($tenant, $service);
                 $this->info("    ✅ Migrations completed for {$service}");
             } catch (Exception $e) {
-                $this->error("    ❌ Migration failed for {$service}: " . $e->getMessage());
+                $this->error("    ❌ Migration failed for {$service}: ".$e->getMessage());
                 throw $e;
             }
         }
@@ -168,7 +172,7 @@ class CreateHybridTenantCommand extends Command
 
     private function runServiceSeeders(string $tenantId, array $services): void
     {
-        $this->info("🌱 Running service seeders...");
+        $this->info('🌱 Running service seeders...');
 
         $tenant = [
             'id' => $tenantId,
@@ -178,12 +182,12 @@ class CreateHybridTenantCommand extends Command
 
         foreach ($services as $service) {
             $this->info("  📊 Running {$service} seeders...");
-            
+
             try {
                 $this->hybridMigrationService->runServiceSeeders($tenant, $service);
                 $this->info("    ✅ Seeders completed for {$service}");
             } catch (Exception $e) {
-                $this->warn("    ⚠️  Seeder failed for {$service}: " . $e->getMessage());
+                $this->warn("    ⚠️  Seeder failed for {$service}: ".$e->getMessage());
                 // Continue with other services even if one fails
             }
         }
@@ -191,6 +195,6 @@ class CreateHybridTenantCommand extends Command
 
     private function generateServicePassword(string $tenantId, string $service): string
     {
-        return hash('sha256', "tenant_{$tenantId}_{$service}_" . config('app.key'));
+        return hash('sha256', "tenant_{$tenantId}_{$service}_".config('app.key'));
     }
 }

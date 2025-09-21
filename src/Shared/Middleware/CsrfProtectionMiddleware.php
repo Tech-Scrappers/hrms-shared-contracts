@@ -12,7 +12,9 @@ use Symfony\Component\HttpFoundation\Response;
 class CsrfProtectionMiddleware
 {
     private const CSRF_TOKEN_LENGTH = 40;
+
     private const CSRF_TOKEN_TTL = 3600; // 1 hour
+
     private const CACHE_PREFIX = 'csrf_token_';
 
     /**
@@ -31,13 +33,13 @@ class CsrfProtectionMiddleware
         }
 
         // Skip CSRF protection for OAuth2 authenticated requests
-        if ($request->hasHeader('Authorization') && 
+        if ($request->hasHeader('Authorization') &&
             str_starts_with($request->header('Authorization'), 'Bearer ')) {
             return $next($request);
         }
 
         // Validate CSRF token for state-changing operations
-        if (!$this->validateCsrfToken($request)) {
+        if (! $this->validateCsrfToken($request)) {
             Log::warning('CSRF token validation failed', [
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
@@ -91,21 +93,21 @@ class CsrfProtectionMiddleware
     private function validateCsrfToken(Request $request): bool
     {
         $token = $this->extractCsrfToken($request);
-        
-        if (!$token) {
+
+        if (! $token) {
             return false;
         }
 
         // Check if token exists in cache
-        $cacheKey = self::CACHE_PREFIX . $token;
+        $cacheKey = self::CACHE_PREFIX.$token;
         $cachedData = Cache::get($cacheKey);
 
-        if (!$cachedData) {
+        if (! $cachedData) {
             return false;
         }
 
         // Validate token format
-        if (!is_string($cachedData) || strlen($cachedData) !== self::CSRF_TOKEN_LENGTH) {
+        if (! is_string($cachedData) || strlen($cachedData) !== self::CSRF_TOKEN_LENGTH) {
             return false;
         }
 
@@ -115,10 +117,11 @@ class CsrfProtectionMiddleware
         }
 
         // Check if token is not expired
-        $tokenData = Cache::get($cacheKey . '_data');
-        if (!$tokenData || now()->isAfter($tokenData['expires_at'])) {
+        $tokenData = Cache::get($cacheKey.'_data');
+        if (! $tokenData || now()->isAfter($tokenData['expires_at'])) {
             Cache::forget($cacheKey);
-            Cache::forget($cacheKey . '_data');
+            Cache::forget($cacheKey.'_data');
+
             return false;
         }
 
@@ -146,6 +149,7 @@ class CsrfProtectionMiddleware
                     'error' => $e->getMessage(),
                     'ip' => $request->ip(),
                 ]);
+
                 return null;
             }
         }
@@ -172,10 +176,10 @@ class CsrfProtectionMiddleware
      */
     public static function storeToken(string $token, int $ttl = self::CSRF_TOKEN_TTL): void
     {
-        $cacheKey = self::CACHE_PREFIX . $token;
-        
+        $cacheKey = self::CACHE_PREFIX.$token;
+
         Cache::put($cacheKey, $token, $ttl);
-        Cache::put($cacheKey . '_data', [
+        Cache::put($cacheKey.'_data', [
             'created_at' => now()->toISOString(),
             'expires_at' => now()->addSeconds($ttl)->toISOString(),
         ], $ttl);
@@ -186,10 +190,10 @@ class CsrfProtectionMiddleware
      */
     public static function revokeToken(string $token): void
     {
-        $cacheKey = self::CACHE_PREFIX . $token;
-        
+        $cacheKey = self::CACHE_PREFIX.$token;
+
         Cache::forget($cacheKey);
-        Cache::forget($cacheKey . '_data');
+        Cache::forget($cacheKey.'_data');
     }
 
     /**

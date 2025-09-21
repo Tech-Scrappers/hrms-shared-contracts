@@ -1,15 +1,11 @@
 <?php
 
-namespace Shared\Tests;
+namespace Tests;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Illuminate\Support\Facades\Redis;
+use PHPUnit\Framework\TestCase;
 
-abstract class BaseTestCase extends BaseTestCase
+abstract class BaseTestCase extends TestCase
 {
-    use RefreshDatabase;
-
     protected string $tenantId;
 
     protected array $testTenant;
@@ -17,9 +13,6 @@ abstract class BaseTestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        // Clear Redis cache
-        Redis::flushall();
 
         // Set up test tenant
         $this->tenantId = 'test-tenant-'.uniqid();
@@ -34,9 +27,6 @@ abstract class BaseTestCase extends BaseTestCase
 
     protected function tearDown(): void
     {
-        // Clean up test data
-        Redis::flushall();
-
         parent::tearDown();
     }
 

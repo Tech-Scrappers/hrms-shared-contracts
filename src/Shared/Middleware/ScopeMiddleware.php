@@ -12,43 +12,38 @@ class ScopeMiddleware
 {
     /**
      * Handle an incoming request.
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @param string $scope
-     * @return Response|\Illuminate\Http\JsonResponse
      */
     public function handle(Request $request, Closure $next, string $scope): Response|\Illuminate\Http\JsonResponse
     {
         try {
             // Get the authenticated user
             $user = $request->user();
-            
-            if (!$user) {
+
+            if (! $user) {
                 Log::warning('ScopeMiddleware: No authenticated user found', [
                     'required_scope' => $scope,
                     'request_uri' => $request->getRequestUri(),
                     'method' => $request->method(),
                 ]);
-                
+
                 return $this->unauthorizedResponse('Authentication required');
             }
 
             // Get the token
             $token = $user->token();
-            if (!$token) {
+            if (! $token) {
                 Log::warning('ScopeMiddleware: No token found for user', [
                     'user_id' => $user->id,
                     'required_scope' => $scope,
                     'request_uri' => $request->getRequestUri(),
                 ]);
-                
+
                 return $this->unauthorizedResponse('Valid token required');
             }
 
             // Check if token has the required scope
             $tokenScopes = $token->scopes ?? [];
-            if (!in_array($scope, $tokenScopes)) {
+            if (! in_array($scope, $tokenScopes)) {
                 Log::warning('ScopeMiddleware: Access denied - missing required scope', [
                     'user_id' => $user->id,
                     'user_role' => $user->role,
@@ -57,7 +52,7 @@ class ScopeMiddleware
                     'request_uri' => $request->getRequestUri(),
                     'method' => $request->method(),
                 ]);
-                
+
                 return $this->forbiddenResponse("Scope '{$scope}' is required");
             }
 

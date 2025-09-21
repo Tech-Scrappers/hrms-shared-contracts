@@ -3,11 +3,11 @@
 namespace Shared\Middleware;
 
 use Closure;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Shared\Services\ApiKeyService;
-use Exception;
 
 class ApiKeyPermissionMiddleware
 {
@@ -18,9 +18,6 @@ class ApiKeyPermissionMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param Request $request
-     * @param Closure $next
-     * @param string $permission
      * @return Response
      */
     public function handle(Request $request, Closure $next, string $permission): \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
@@ -28,15 +25,15 @@ class ApiKeyPermissionMiddleware
         try {
             // Get API key from request
             $apiKey = $this->extractApiKey($request);
-            
-            if (!$apiKey) {
+
+            if (! $apiKey) {
                 return $this->forbiddenResponse('API key is required');
             }
 
             // Check if API key has the required permission
-            if (!$this->apiKeyService->hasPermission($apiKey, $permission)) {
+            if (! $this->apiKeyService->hasPermission($apiKey, $permission)) {
                 Log::warning('API key permission denied', [
-                    'api_key' => substr($apiKey, 0, 10) . '...',
+                    'api_key' => substr($apiKey, 0, 10).'...',
                     'required_permission' => $permission,
                     'request_uri' => $request->getRequestUri(),
                     'ip' => $request->ip(),
@@ -65,9 +62,6 @@ class ApiKeyPermissionMiddleware
 
     /**
      * Extract API key from request
-     *
-     * @param Request $request
-     * @return string|null
      */
     private function extractApiKey(Request $request): ?string
     {
@@ -95,7 +89,6 @@ class ApiKeyPermissionMiddleware
     /**
      * Return forbidden response
      *
-     * @param string $message
      * @return Response
      */
     private function forbiddenResponse(string $message): \Illuminate\Http\JsonResponse
@@ -109,9 +102,6 @@ class ApiKeyPermissionMiddleware
 
     /**
      * Return server error response
-     *
-     * @param string $message
-     * @return Response
      */
     private function serverErrorResponse(string $message): Response
     {

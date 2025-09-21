@@ -3,8 +3,8 @@
 namespace Shared\Controllers;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Shared\Traits\EnterpriseApiResponseTrait;
 
@@ -61,7 +61,7 @@ class HealthController
 
         $isReady = $this->isServiceReady($checks);
 
-        if (!$isReady) {
+        if (! $isReady) {
             return $this->errorResponse(
                 'Service is not ready',
                 503,
@@ -103,13 +103,13 @@ class HealthController
             return [
                 'status' => 'healthy',
                 'response_time_ms' => (int) $responseTime,
-                'connection' => 'active'
+                'connection' => 'active',
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'unhealthy',
                 'error' => $e->getMessage(),
-                'connection' => 'failed'
+                'connection' => 'failed',
             ];
         }
     }
@@ -121,7 +121,7 @@ class HealthController
     {
         try {
             $startTime = microtime(true);
-            $testKey = 'health_check_' . time();
+            $testKey = 'health_check_'.time();
             Cache::put($testKey, 'test', 10);
             $value = Cache::get($testKey);
             Cache::forget($testKey);
@@ -130,13 +130,13 @@ class HealthController
             return [
                 'status' => $value === 'test' ? 'healthy' : 'unhealthy',
                 'response_time_ms' => (int) $responseTime,
-                'connection' => 'active'
+                'connection' => 'active',
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'unhealthy',
                 'error' => $e->getMessage(),
-                'connection' => 'failed'
+                'connection' => 'failed',
             ];
         }
     }
@@ -154,13 +154,13 @@ class HealthController
             return [
                 'status' => 'healthy',
                 'response_time_ms' => (int) $responseTime,
-                'connection' => 'active'
+                'connection' => 'active',
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'unhealthy',
                 'error' => $e->getMessage(),
-                'connection' => 'failed'
+                'connection' => 'failed',
             ];
         }
     }
@@ -178,7 +178,7 @@ class HealthController
             'status' => $memoryUsagePercent < 80 ? 'healthy' : 'warning',
             'usage_mb' => round($memoryUsage / 1024 / 1024, 2),
             'limit_mb' => round($memoryLimit / 1024 / 1024, 2),
-            'usage_percent' => round($memoryUsagePercent, 2)
+            'usage_percent' => round($memoryUsagePercent, 2),
         ];
     }
 
@@ -195,7 +195,7 @@ class HealthController
             'status' => $diskUsagePercent < 90 ? 'healthy' : 'warning',
             'free_gb' => round($diskFree / 1024 / 1024 / 1024, 2),
             'total_gb' => round($diskTotal / 1024 / 1024 / 1024, 2),
-            'usage_percent' => round($diskUsagePercent, 2)
+            'usage_percent' => round($diskUsagePercent, 2),
         ];
     }
 
@@ -205,15 +205,15 @@ class HealthController
     private function determineOverallStatus(array $checks): string
     {
         $statuses = array_column($checks, 'status');
-        
+
         if (in_array('unhealthy', $statuses)) {
             return 'unhealthy';
         }
-        
+
         if (in_array('warning', $statuses)) {
             return 'degraded';
         }
-        
+
         return 'healthy';
     }
 
@@ -227,7 +227,7 @@ class HealthController
                 return false;
             }
         }
-        
+
         return true;
     }
 

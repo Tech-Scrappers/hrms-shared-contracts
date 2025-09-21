@@ -3,14 +3,13 @@
 namespace Shared\Base;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Shared\Contracts\TenantAwareInterface;
 
 abstract class BaseController implements TenantAwareInterface
 {
-    use \Shared\Traits\TenantAwareTrait;
     use \Shared\Traits\EnterpriseApiResponseTrait;
+    use \Shared\Traits\TenantAwareTrait;
 
     /**
      * Return a success response (backward compatibility)

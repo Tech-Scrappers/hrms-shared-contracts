@@ -2,19 +2,19 @@
 
 namespace Shared\Events;
 
-use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use Shared\Contracts\EventInterface;
 
 class EventBus
 {
     private string $serviceName;
-    
+
     public function __construct(string $serviceName = 'default')
     {
         $this->serviceName = $serviceName;
     }
-    
+
     /**
      * Publish an event to the event bus with retry mechanism
      */
@@ -39,11 +39,12 @@ class EventBus
                     'service' => $this->serviceName,
                     'retry_count' => $retryCount,
                 ]);
+
                 return; // Success, exit retry loop
             } catch (\Exception $e) {
                 $lastException = $e;
                 $retryCount++;
-                
+
                 Log::warning('Event publishing failed, retrying', [
                     'event_name' => $event->getEventName(),
                     'service' => $this->serviceName,
@@ -70,7 +71,7 @@ class EventBus
 
         // Store failed event for manual processing
         $this->storeFailedEvent($event, $lastException);
-        
+
         throw $lastException;
     }
 
@@ -89,13 +90,13 @@ class EventBus
                 'tenant_id' => $event->getTenantId(),
             ],
         ];
-        
+
         // Publish to Redis channel
         Redis::publish('hrms_events', json_encode($eventData));
-        
+
         // Also store in Redis for persistence
         Redis::lpush('hrms_events:queue', json_encode($eventData));
-        
+
         // Keep only last 1000 events in queue
         Redis::ltrim('hrms_events:queue', 0, 999);
     }
@@ -121,10 +122,10 @@ class EventBus
             ];
 
             Redis::lpush('failed_publish_events', json_encode($failedEvent));
-            
+
             // Keep only last 50 failed events
             Redis::ltrim('failed_publish_events', 0, 49);
-            
+
             Log::info('Failed event stored for manual processing', [
                 'service' => $this->serviceName,
                 'event_name' => $event->getEventName(),
@@ -137,7 +138,7 @@ class EventBus
             ]);
         }
     }
-    
+
     /**
      * Subscribe to events
      */
@@ -146,16 +147,16 @@ class EventBus
         Redis::subscribe(['hrms_events'], function (string $message) use ($eventName, $callback) {
             try {
                 $eventData = json_decode($message, true);
-                
-                if (!$eventData || !isset($eventData['event_name'])) {
+
+                if (! $eventData || ! isset($eventData['event_name'])) {
                     return;
                 }
-                
+
                 // Check if this is the event we're interested in
                 if ($eventData['event_name'] === $eventName) {
                     $callback($eventData['payload'], $eventData['metadata']);
                 }
-                
+
             } catch (\Exception $e) {
                 Log::error('Failed to process event', [
                     'event_name' => $eventName,
@@ -164,7 +165,7 @@ class EventBus
             }
         });
     }
-    
+
     /**
      * Subscribe to multiple events
      */
@@ -173,16 +174,16 @@ class EventBus
         Redis::subscribe(['hrms_events'], function (string $message) use ($eventNames, $callback) {
             try {
                 $eventData = json_decode($message, true);
-                
-                if (!$eventData || !isset($eventData['event_name'])) {
+
+                if (! $eventData || ! isset($eventData['event_name'])) {
                     return;
                 }
-                
+
                 // Check if this is one of the events we're interested in
                 if (in_array($eventData['event_name'], $eventNames)) {
                     $callback($eventData['event_name'], $eventData['payload'], $eventData['metadata']);
                 }
-                
+
             } catch (\Exception $e) {
                 Log::error('Failed to process event', [
                     'event_names' => $eventNames,
@@ -191,19 +192,19 @@ class EventBus
             }
         });
     }
-    
+
     /**
      * Get event history
      */
     public function getEventHistory(int $limit = 100): array
     {
         $events = Redis::lrange('hrms_events:queue', 0, $limit - 1);
-        
+
         return array_map(function ($event) {
             return json_decode($event, true);
         }, $events);
     }
-    
+
     /**
      * Clear event history
      */
@@ -211,14 +212,14 @@ class EventBus
     {
         Redis::del('hrms_events:queue');
     }
-    
+
     /**
      * Get service-specific events
      */
     public function getServiceEvents(string $serviceName, int $limit = 100): array
     {
         $allEvents = $this->getEventHistory($limit);
-        
+
         return array_filter($allEvents, function ($event) use ($serviceName) {
             return isset($event['metadata']['service']) && $event['metadata']['service'] === $serviceName;
         });

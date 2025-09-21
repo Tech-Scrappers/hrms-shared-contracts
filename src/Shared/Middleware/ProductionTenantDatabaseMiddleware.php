@@ -3,12 +3,12 @@
 namespace Shared\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Shared\Services\HybridDatabaseService;
-use Shared\Services\DatabaseConnectionManager;
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Shared\Services\DatabaseConnectionManager;
+use Shared\Services\HybridDatabaseService;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Production-ready tenant database middleware
@@ -28,29 +28,29 @@ class ProductionTenantDatabaseMiddleware
         try {
             // Get tenant identifier from request
             $tenantId = $this->getTenantIdentifier($request);
-            
-            if (!$tenantId) {
+
+            if (! $tenantId) {
                 return $this->errorResponse('Tenant identifier is required', 400);
             }
 
             // Validate tenant exists and is active
             $tenant = $this->hybridDatabaseService->getTenant($tenantId);
-            
-            if (!$tenant) {
+
+            if (! $tenant) {
                 return $this->errorResponse('Tenant not found', 404);
             }
 
-            if (!$tenant['is_active']) {
+            if (! $tenant['is_active']) {
                 return $this->errorResponse('Tenant is inactive', 403);
             }
 
             // Get current service
             $currentService = $this->hybridDatabaseService->getCurrentService();
             $actualTenantId = $tenant['id'];
-            
+
             // Check if tenant service database exists
             $databaseName = "tenant_{$actualTenantId}_{$currentService}";
-            if (!$this->tenantServiceDatabaseExists($databaseName)) {
+            if (! $this->tenantServiceDatabaseExists($databaseName)) {
                 return $this->errorResponse("Tenant {$currentService} database not found", 404);
             }
 
@@ -65,6 +65,7 @@ class ProductionTenantDatabaseMiddleware
                     'expected_database' => $databaseName,
                     'actual_connection' => $connectionInfo,
                 ]);
+
                 return $this->errorResponse('Database connection failed', 500);
             }
 
@@ -127,8 +128,9 @@ class ProductionTenantDatabaseMiddleware
     private function tenantServiceDatabaseExists(string $databaseName): bool
     {
         try {
-            $result = \DB::select("SELECT 1 FROM pg_database WHERE datname = ?", [$databaseName]);
-            return !empty($result);
+            $result = \DB::select('SELECT 1 FROM pg_database WHERE datname = ?', [$databaseName]);
+
+            return ! empty($result);
         } catch (Exception $e) {
             return false;
         }
@@ -162,14 +164,14 @@ class ProductionTenantDatabaseMiddleware
         try {
             // Switch back to central database using connection manager
             DatabaseConnectionManager::switchToCentralDatabase();
-            
+
             // Cleanup old connections from pool
             DatabaseConnectionManager::cleanupOldConnections(30); // 30 minutes
-            
+
             Log::debug('Database connections cleaned up', [
                 'tenant_id' => $tenantId,
             ]);
-            
+
         } catch (Exception $e) {
             Log::error('Failed to cleanup database connections', [
                 'tenant_id' => $tenantId,

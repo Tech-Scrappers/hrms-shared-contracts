@@ -3,16 +3,18 @@
 namespace Shared\Middleware;
 
 use Closure;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 class ApiKeyRateLimitMiddleware
 {
     private const RATE_LIMIT_PREFIX = 'api_rate_limit_';
+
     private const DEFAULT_LIMIT = 1000; // requests per hour
+
     private const DEFAULT_WINDOW = 3600; // 1 hour in seconds
 
     public function __construct()
@@ -23,18 +25,14 @@ class ApiKeyRateLimitMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param Request $request
-     * @param Closure $next
-     * @param int $maxRequests
-     * @param int $windowSeconds
      * @return Response
      */
     public function handle(Request $request, Closure $next, int $maxRequests = self::DEFAULT_LIMIT, int $windowSeconds = self::DEFAULT_WINDOW): \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
     {
         try {
             $apiKey = $this->extractApiKey($request);
-            
-            if (!$apiKey) {
+
+            if (! $apiKey) {
                 // If no API key, use IP-based rate limiting
                 $identifier = $request->ip();
             } else {
@@ -42,15 +40,15 @@ class ApiKeyRateLimitMiddleware
                 $identifier = hash('sha256', $apiKey);
             }
 
-            $rateLimitKey = self::RATE_LIMIT_PREFIX . $identifier;
-            
+            $rateLimitKey = self::RATE_LIMIT_PREFIX.$identifier;
+
             // Get current request count
             $currentRequests = Cache::get($rateLimitKey, 0);
-            
+
             // Check if rate limit exceeded
             if ($currentRequests >= $maxRequests) {
                 Log::warning('Rate limit exceeded', [
-                    'identifier' => substr($identifier, 0, 10) . '...',
+                    'identifier' => substr($identifier, 0, 10).'...',
                     'current_requests' => $currentRequests,
                     'max_requests' => $maxRequests,
                     'window_seconds' => $windowSeconds,
@@ -66,7 +64,7 @@ class ApiKeyRateLimitMiddleware
 
             // Add rate limit headers to response
             $response = $next($request);
-            
+
             $this->addRateLimitHeaders($response, $currentRequests + 1, $maxRequests, $windowSeconds);
 
             return $response;
@@ -84,9 +82,6 @@ class ApiKeyRateLimitMiddleware
 
     /**
      * Extract API key from request
-     *
-     * @param Request $request
-     * @return string|null
      */
     private function extractApiKey(Request $request): ?string
     {
@@ -114,11 +109,7 @@ class ApiKeyRateLimitMiddleware
     /**
      * Add rate limit headers to response
      *
-     * @param Response $response
-     * @param int $currentRequests
-     * @param int $maxRequests
-     * @param int $windowSeconds
-     * @return void
+     * @param  Response  $response
      */
     private function addRateLimitHeaders(\Illuminate\Http\Response|\Illuminate\Http\JsonResponse $response, int $currentRequests, int $maxRequests, int $windowSeconds): void
     {
@@ -129,10 +120,6 @@ class ApiKeyRateLimitMiddleware
 
     /**
      * Return rate limited response
-     *
-     * @param int $maxRequests
-     * @param int $windowSeconds
-     * @return Response
      */
     private function rateLimitedResponse(int $maxRequests, int $windowSeconds): Response
     {

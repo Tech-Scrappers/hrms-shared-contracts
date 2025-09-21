@@ -8,27 +8,29 @@ use Illuminate\Support\Facades\Redis;
 class EventSubscriber
 {
     private string $serviceName;
+
     private array $handlers = [];
+
     private bool $isRunning = false;
-    
+
     public function __construct(string $serviceName)
     {
         $this->serviceName = $serviceName;
     }
-    
+
     /**
      * Register an event handler
      */
     public function registerHandler(string $eventName, callable $handler): void
     {
         $this->handlers[$eventName] = $handler;
-        
+
         Log::info('Event handler registered', [
             'service' => $this->serviceName,
             'event_name' => $eventName,
         ]);
     }
-    
+
     /**
      * Register multiple event handlers
      */
@@ -38,7 +40,7 @@ class EventSubscriber
             $this->registerHandler($eventName, $handler);
         }
     }
-    
+
     /**
      * Start listening for events
      */
@@ -47,19 +49,19 @@ class EventSubscriber
         if ($this->isRunning) {
             return;
         }
-        
+
         $this->isRunning = true;
-        
+
         Log::info('Event subscriber started', [
             'service' => $this->serviceName,
             'handlers' => array_keys($this->handlers),
         ]);
-        
+
         Redis::subscribe(['hrms_events'], function (string $message) {
             $this->handleEvent($message);
         });
     }
-    
+
     /**
      * Handle incoming events with retry mechanism
      */
@@ -83,11 +85,12 @@ class EventSubscriber
                     'service' => $this->serviceName,
                     'retry_count' => $retryCount,
                 ]);
+
                 return; // Success, exit retry loop
             } catch (\Exception $e) {
                 $lastException = $e;
                 $retryCount++;
-                
+
                 Log::warning('Event processing failed, retrying', [
                     'service' => $this->serviceName,
                     'retry_count' => $retryCount,
@@ -122,35 +125,36 @@ class EventSubscriber
     private function processEvent(string $message): void
     {
         $eventData = json_decode($message, true);
-        
-        if (!$eventData || !isset($eventData['event_name'])) {
+
+        if (! $eventData || ! isset($eventData['event_name'])) {
             throw new \InvalidArgumentException('Invalid event data received');
         }
-        
+
         $eventName = $eventData['event_name'];
         $payload = $eventData['payload'] ?? [];
         $metadata = $eventData['metadata'] ?? [];
-        
+
         // Skip events from the same service
         if (isset($metadata['service']) && $metadata['service'] === $this->serviceName) {
             return;
         }
-        
+
         // Check if we have a handler for this event
-        if (!isset($this->handlers[$eventName])) {
+        if (! isset($this->handlers[$eventName])) {
             Log::debug('No handler for event', [
                 'service' => $this->serviceName,
                 'event_name' => $eventName,
             ]);
+
             return;
         }
-        
+
         Log::info('Processing event', [
             'service' => $this->serviceName,
             'event_name' => $eventName,
             'event_id' => $metadata['event_id'] ?? 'unknown',
         ]);
-        
+
         // Execute the handler
         $handler = $this->handlers[$eventName];
         $handler($payload, $metadata);
@@ -171,10 +175,10 @@ class EventSubscriber
             ];
 
             Redis::lpush('failed_events', json_encode($failedEvent));
-            
+
             // Keep only last 100 failed events
             Redis::ltrim('failed_events', 0, 99);
-            
+
             Log::info('Failed event stored for manual processing', [
                 'service' => $this->serviceName,
                 'failed_event_id' => $failedEvent['failed_at'],
@@ -186,19 +190,19 @@ class EventSubscriber
             ]);
         }
     }
-    
+
     /**
      * Stop listening for events
      */
     public function stopListening(): void
     {
         $this->isRunning = false;
-        
+
         Log::info('Event subscriber stopped', [
             'service' => $this->serviceName,
         ]);
     }
-    
+
     /**
      * Get registered handlers
      */
@@ -206,7 +210,7 @@ class EventSubscriber
     {
         return array_keys($this->handlers);
     }
-    
+
     /**
      * Check if subscriber is running
      */

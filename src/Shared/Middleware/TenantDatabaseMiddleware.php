@@ -3,11 +3,11 @@
 namespace Shared\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Shared\Services\TenantDatabaseService;
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Shared\Services\TenantDatabaseService;
+use Symfony\Component\HttpFoundation\Response;
 
 class TenantDatabaseMiddleware
 {
@@ -20,24 +20,24 @@ class TenantDatabaseMiddleware
         try {
             // Get tenant identifier from headers or request
             $tenantId = $this->getTenantIdentifier($request);
-            
-            if (!$tenantId) {
+
+            if (! $tenantId) {
                 return $this->errorResponse('Tenant identifier is required', 400);
             }
 
             // Validate tenant exists and is active
             $tenant = $this->tenantDatabaseService->getTenant($tenantId);
-            
-            if (!$tenant) {
+
+            if (! $tenant) {
                 return $this->errorResponse('Tenant not found', 404);
             }
 
-            if (!$tenant['is_active']) {
+            if (! $tenant['is_active']) {
                 return $this->errorResponse('Tenant is inactive', 403);
             }
 
             // Check if tenant database exists
-            if (!$this->tenantDatabaseService->tenantDatabaseExists($tenant['database_name'])) {
+            if (! $this->tenantDatabaseService->tenantDatabaseExists($tenant['database_name'])) {
                 return $this->errorResponse('Tenant database not found', 404);
             }
 
@@ -76,27 +76,24 @@ class TenantDatabaseMiddleware
 
     /**
      * Get tenant identifier from request
-     *
-     * @param Request $request
-     * @return string|null
      */
     private function getTenantIdentifier(Request $request): ?string
     {
         // Try different header names
-        $tenantId = $request->header('HRMS-Client-ID') 
+        $tenantId = $request->header('HRMS-Client-ID')
                  ?? $request->header('X-Tenant-Domain')
                  ?? $request->header('Tenant-ID')
                  ?? $request->header('Tenant-Domain');
 
         // Try query parameter
-        if (!$tenantId) {
-            $tenantId = $request->query('tenant_id') 
+        if (! $tenantId) {
+            $tenantId = $request->query('tenant_id')
                      ?? $request->query('tenant_domain');
         }
 
         // Try request body
-        if (!$tenantId) {
-            $tenantId = $request->input('tenant_id') 
+        if (! $tenantId) {
+            $tenantId = $request->input('tenant_id')
                      ?? $request->input('tenant_domain');
         }
 
@@ -105,10 +102,6 @@ class TenantDatabaseMiddleware
 
     /**
      * Create error response
-     *
-     * @param string $message
-     * @param int $statusCode
-     * @return Response
      */
     private function errorResponse(string $message, int $statusCode): Response
     {

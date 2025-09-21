@@ -17,28 +17,28 @@ class EnterpriseRateLimitMiddleware
         'anonymous' => [
             'requests_per_minute' => 60,
             'requests_per_hour' => 1000,
-            'burst_limit' => 10
+            'burst_limit' => 10,
         ],
         'authenticated' => [
             'requests_per_minute' => 200,
             'requests_per_hour' => 5000,
-            'burst_limit' => 50
+            'burst_limit' => 50,
         ],
         'api_key' => [
             'requests_per_minute' => 500,
             'requests_per_hour' => 10000,
-            'burst_limit' => 100
+            'burst_limit' => 100,
         ],
         'premium' => [
             'requests_per_minute' => 1000,
             'requests_per_hour' => 50000,
-            'burst_limit' => 200
+            'burst_limit' => 200,
         ],
         'internal' => [
             'requests_per_minute' => 2000,
             'requests_per_hour' => 100000,
-            'burst_limit' => 500
-        ]
+            'burst_limit' => 500,
+        ],
     ];
 
     /**
@@ -48,11 +48,11 @@ class EnterpriseRateLimitMiddleware
     {
         $identifier = $this->getRateLimitIdentifier($request);
         $tier = $this->determineTier($request, $tier);
-        
+
         // Check rate limits
         $rateLimitResult = $this->checkRateLimit($identifier, $tier, $request);
-        
-        if (!$rateLimitResult['allowed']) {
+
+        if (! $rateLimitResult['allowed']) {
             return $this->rateLimitResponse($rateLimitResult);
         }
 
@@ -71,21 +71,22 @@ class EnterpriseRateLimitMiddleware
         // For authenticated users, use user ID
         if ($request->has('auth_user')) {
             $user = $request->get('auth_user');
-            return 'user:' . ($user['id'] ?? 'unknown');
+
+            return 'user:'.($user['id'] ?? 'unknown');
         }
 
         // For API key requests, use API key ID
         if ($request->has('api_key_id')) {
-            return 'api_key:' . $request->get('api_key_id');
+            return 'api_key:'.$request->get('api_key_id');
         }
 
         // For internal services, use service identifier
         if ($this->isInternalRequest($request)) {
-            return 'internal:' . $request->header('X-Service-Name', 'unknown');
+            return 'internal:'.$request->header('X-Service-Name', 'unknown');
         }
 
         // For anonymous users, use IP address
-        return 'ip:' . $this->getClientIp($request);
+        return 'ip:'.$this->getClientIp($request);
     }
 
     /**
@@ -123,11 +124,11 @@ class EnterpriseRateLimitMiddleware
     {
         $limits = $this->rateLimits[$tier] ?? $this->rateLimits['authenticated'];
         $now = now();
-        
+
         // Check minute-based rate limit
-        $minuteKey = "rate_limit:minute:{$identifier}:" . $now->format('Y-m-d-H-i');
+        $minuteKey = "rate_limit:minute:{$identifier}:".$now->format('Y-m-d-H-i');
         $minuteCount = Cache::get($minuteKey, 0);
-        
+
         if ($minuteCount >= $limits['requests_per_minute']) {
             return [
                 'allowed' => false,
@@ -136,14 +137,14 @@ class EnterpriseRateLimitMiddleware
                 'reset_time' => $now->addMinute()->timestamp,
                 'retry_after' => 60,
                 'tier' => $tier,
-                'window' => 'minute'
+                'window' => 'minute',
             ];
         }
 
         // Check hour-based rate limit
-        $hourKey = "rate_limit:hour:{$identifier}:" . $now->format('Y-m-d-H');
+        $hourKey = "rate_limit:hour:{$identifier}:".$now->format('Y-m-d-H');
         $hourCount = Cache::get($hourKey, 0);
-        
+
         if ($hourCount >= $limits['requests_per_hour']) {
             return [
                 'allowed' => false,
@@ -152,14 +153,14 @@ class EnterpriseRateLimitMiddleware
                 'reset_time' => $now->addHour()->timestamp,
                 'retry_after' => 3600,
                 'tier' => $tier,
-                'window' => 'hour'
+                'window' => 'hour',
             ];
         }
 
         // Check burst limit (sliding window)
         $burstKey = "rate_limit:burst:{$identifier}";
         $burstCount = Cache::get($burstKey, 0);
-        
+
         if ($burstCount >= $limits['burst_limit']) {
             return [
                 'allowed' => false,
@@ -168,7 +169,7 @@ class EnterpriseRateLimitMiddleware
                 'reset_time' => $now->addSeconds(10)->timestamp,
                 'retry_after' => 10,
                 'tier' => $tier,
-                'window' => 'burst'
+                'window' => 'burst',
             ];
         }
 
@@ -181,7 +182,7 @@ class EnterpriseRateLimitMiddleware
             'remaining' => $limits['requests_per_minute'] - $minuteCount - 1,
             'reset_time' => $now->addMinute()->timestamp,
             'tier' => $tier,
-            'window' => 'minute'
+            'window' => 'minute',
         ];
     }
 
@@ -213,7 +214,7 @@ class EnterpriseRateLimitMiddleware
             'error' => [
                 'code' => 'RATE_LIMIT_EXCEEDED',
                 'message' => 'Too many requests. Please try again later',
-                'type' => 'rate_limit_error'
+                'type' => 'rate_limit_error',
             ],
             'meta' => [
                 'timestamp' => now()->toISOString(),
@@ -224,9 +225,9 @@ class EnterpriseRateLimitMiddleware
                     'reset_time' => now()->createFromTimestamp($rateLimitResult['reset_time'])->toISOString(),
                     'retry_after' => $rateLimitResult['retry_after'],
                     'tier' => $rateLimitResult['tier'],
-                    'window' => $rateLimitResult['window']
-                ]
-            ]
+                    'window' => $rateLimitResult['window'],
+                ],
+            ],
         ], 429);
 
         // Add rate limit headers
@@ -243,7 +244,7 @@ class EnterpriseRateLimitMiddleware
             'window' => $rateLimitResult['window'],
             'ip' => $this->getClientIp(request()),
             'user_agent' => request()->header('User-Agent'),
-            'endpoint' => request()->path()
+            'endpoint' => request()->path(),
         ]);
 
         return $response;
@@ -268,14 +269,14 @@ class EnterpriseRateLimitMiddleware
         $internalServices = [
             'identity-service',
             'employee-service',
-            'attendance-service',
-            'api-gateway'
+            'core-service',
+            'api-gateway',
         ];
 
         $serviceName = $request->header('X-Service-Name');
         $userAgent = $request->header('User-Agent', '');
 
-        return in_array($serviceName, $internalServices) || 
+        return in_array($serviceName, $internalServices) ||
                str_contains($userAgent, 'HRMS-Internal');
     }
 
@@ -291,12 +292,13 @@ class EnterpriseRateLimitMiddleware
             'HTTP_X_CLUSTER_CLIENT_IP',  // Cluster
             'HTTP_FORWARDED_FOR',        // Proxy
             'HTTP_FORWARDED',            // Proxy
-            'REMOTE_ADDR'                // Standard
+            'REMOTE_ADDR',                // Standard
         ];
 
         foreach ($headers as $header) {
             if ($request->server($header)) {
                 $ips = explode(',', $request->server($header));
+
                 return trim($ips[0]);
             }
         }

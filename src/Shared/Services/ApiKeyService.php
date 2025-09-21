@@ -2,15 +2,16 @@
 
 namespace Shared\Services;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
-use Exception;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ApiKeyService
 {
     private const CACHE_PREFIX = 'api_key_';
+
     private const CACHE_TTL = 300; // 5 minutes
 
     public function __construct()
@@ -20,17 +21,14 @@ class ApiKeyService
 
     /**
      * Validate API key and return key data
-     *
-     * @param string $apiKey
-     * @return array|null
      */
     public function validateApiKey(string $apiKey): ?array
     {
         try {
             // Try to get from cache first
-            $cacheKey = self::CACHE_PREFIX . hash('sha256', $apiKey);
+            $cacheKey = self::CACHE_PREFIX.hash('sha256', $apiKey);
             $cachedData = Cache::get($cacheKey);
-            
+
             if ($cachedData) {
                 return $cachedData;
             }
@@ -44,7 +42,7 @@ class ApiKeyService
             // Check each API key using appropriate verification method
             foreach ($apiKeys as $apiKeyData) {
                 $isValid = false;
-                
+
                 // Check if it's a bcrypt hash (starts with $2y$)
                 if (str_starts_with($apiKeyData->key_hash, '$2y$')) {
                     try {
@@ -57,7 +55,7 @@ class ApiKeyService
                     // Assume it's SHA256 hash
                     $isValid = hash('sha256', $apiKey) === $apiKeyData->key_hash;
                 }
-                
+
                 if ($isValid) {
                     $result = [
                         'id' => $apiKeyData->id,
@@ -84,18 +82,15 @@ class ApiKeyService
         } catch (Exception $e) {
             Log::error('API key validation error', [
                 'error' => $e->getMessage(),
-                'api_key_prefix' => substr($apiKey, 0, 10) . '...',
+                'api_key_prefix' => substr($apiKey, 0, 10).'...',
             ]);
-            
+
             return null;
         }
     }
 
     /**
      * Update last used timestamp for API key
-     *
-     * @param string $apiKeyId
-     * @return bool
      */
     public function updateLastUsed(string $apiKeyId): bool
     {
@@ -120,23 +115,19 @@ class ApiKeyService
                 'api_key_id' => $apiKeyId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return false;
         }
     }
 
     /**
      * Check if API key has specific permission
-     *
-     * @param string $apiKey
-     * @param string $permission
-     * @return bool
      */
     public function hasPermission(string $apiKey, string $permission): bool
     {
         $apiKeyData = $this->validateApiKey($apiKey);
-        
-        if (!$apiKeyData) {
+
+        if (! $apiKeyData) {
             return false;
         }
 
@@ -153,15 +144,12 @@ class ApiKeyService
 
     /**
      * Get API key permissions
-     *
-     * @param string $apiKey
-     * @return array
      */
     public function getPermissions(string $apiKey): array
     {
         $apiKeyData = $this->validateApiKey($apiKey);
-        
-        if (!$apiKeyData) {
+
+        if (! $apiKeyData) {
             return [];
         }
 
@@ -170,9 +158,6 @@ class ApiKeyService
 
     /**
      * Revoke API key
-     *
-     * @param string $apiKeyId
-     * @return bool
      */
     public function revokeApiKey(string $apiKeyId): bool
     {
@@ -188,7 +173,7 @@ class ApiKeyService
             if ($updated) {
                 // Clear cache for this API key
                 $this->clearApiKeyCache($apiKeyId);
-                
+
                 Log::info('API key revoked', [
                     'api_key_id' => $apiKeyId,
                 ]);
@@ -201,16 +186,13 @@ class ApiKeyService
                 'api_key_id' => $apiKeyId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return false;
         }
     }
 
     /**
      * Get API key statistics
-     *
-     * @param string $tenantId
-     * @return array
      */
     public function getApiKeyStats(string $tenantId): array
     {
@@ -240,7 +222,7 @@ class ApiKeyService
                 'tenant_id' => $tenantId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return [
                 'total_keys' => 0,
                 'active_keys' => 0,
@@ -280,16 +262,13 @@ class ApiKeyService
             Log::error('Failed to cleanup expired API keys', [
                 'error' => $e->getMessage(),
             ]);
-            
+
             return 0;
         }
     }
 
     /**
      * Clear API key cache
-     *
-     * @param string $apiKeyId
-     * @return void
      */
     private function clearApiKeyCache(string $apiKeyId): void
     {
@@ -301,7 +280,7 @@ class ApiKeyService
                 ->value('key_hash');
 
             if ($apiKey) {
-                $cacheKey = self::CACHE_PREFIX . $apiKey;
+                $cacheKey = self::CACHE_PREFIX.$apiKey;
                 Cache::forget($cacheKey);
             }
         } catch (Exception $e) {
@@ -314,19 +293,14 @@ class ApiKeyService
 
     /**
      * Generate a new API key
-     *
-     * @return string
      */
     public static function generateApiKey(): string
     {
-        return 'ak_' . bin2hex(random_bytes(32));
+        return 'ak_'.bin2hex(random_bytes(32));
     }
 
     /**
      * Hash API key for storage
-     *
-     * @param string $apiKey
-     * @return string
      */
     public static function hashApiKey(string $apiKey): string
     {
@@ -336,13 +310,12 @@ class ApiKeyService
     /**
      * Configure tenant database connection
      *
-     * @param object $tenant
-     * @return void
+     * @param  object  $tenant
      */
     private function configureTenantConnection($tenant): void
     {
         $connectionName = "tenant_{$tenant->id}";
-        
+
         Config::set("database.connections.{$connectionName}", [
             'driver' => 'pgsql',
             'host' => config('database.connections.pgsql.host'),

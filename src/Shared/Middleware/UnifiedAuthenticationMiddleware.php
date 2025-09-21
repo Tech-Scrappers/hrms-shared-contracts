@@ -5,17 +5,18 @@ namespace Shared\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Shared\Services\ApiKeyService;
 use Shared\Services\HybridDatabaseService;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Str;
 
 class UnifiedAuthenticationMiddleware
 {
     protected $apiKeyService;
+
     protected $hybridDatabaseService;
 
     public function __construct(ApiKeyService $apiKeyService, HybridDatabaseService $hybridDatabaseService)
@@ -27,8 +28,6 @@ class UnifiedAuthenticationMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
      * @return mixed
      */
     public function handle(Request $request, Closure $next): Response|\Illuminate\Http\JsonResponse
@@ -48,7 +47,8 @@ class UnifiedAuthenticationMiddleware
 
             return $this->unauthorizedResponse('Authentication required. Provide either HRMS-Client-Secret header or Authorization Bearer token.');
         } catch (\Exception $e) {
-            Log::error('UnifiedAuthenticationMiddleware error: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('UnifiedAuthenticationMiddleware error: '.$e->getMessage(), ['exception' => $e]);
+
             return $this->serverErrorResponse('Authentication failed due to an internal server error.');
         }
     }
@@ -60,50 +60,50 @@ class UnifiedAuthenticationMiddleware
     {
         try {
             // Validate API key format
-            if (!$this->isValidApiKeyFormat($apiKey)) {
+            if (! $this->isValidApiKeyFormat($apiKey)) {
                 return $this->unauthorizedResponse('Invalid API key format');
             }
 
             // Get API key details
             $apiKeyData = $this->apiKeyService->validateApiKey($apiKey);
-            if (!$apiKeyData) {
+            if (! $apiKeyData) {
                 return $this->unauthorizedResponse('Invalid API key');
             }
 
             // Check if API key is active
-            if (!$apiKeyData['is_active']) {
+            if (! $apiKeyData['is_active']) {
                 return $this->unauthorizedResponse('API key is inactive');
             }
 
             // CRITICAL FIX: Validate tenant context for API key
             $tenantValidation = $this->validateApiKeyTenantContext($request, $apiKeyData);
-            if (!$tenantValidation['valid']) {
+            if (! $tenantValidation['valid']) {
                 // Log security event for cross-tenant API key access attempt
                 $this->logSecurityEvent('api_key_cross_tenant_access_attempt', $apiKeyData, $request, [
                     'requested_tenant_domain' => $request->header('X-Tenant-Domain', 'not_provided'),
                     'api_key_tenant_id' => $apiKeyData['tenant_id'],
-                    'reason' => $tenantValidation['message']
+                    'reason' => $tenantValidation['message'],
                 ]);
-                
+
                 return $this->unauthorizedResponse($tenantValidation['message']);
             }
 
             // Set tenant context
             $tenantId = $apiKeyData['tenant_id'];
-            
+
             // Get tenant information from database
             $tenant = DB::connection('pgsql')
                 ->table('tenants')
                 ->where('id', $tenantId)
                 ->where('is_active', true)
                 ->first();
-            
+
             $request->merge([
                 'tenant_id' => $tenantId,
                 'tenant_domain' => $tenant->domain,
-                'tenant_name' => $tenant->name
+                'tenant_name' => $tenant->name,
             ]);
-            
+
             $this->hybridDatabaseService->switchToTenantDatabase($tenantId);
 
             // Set authenticated API key on request
@@ -128,7 +128,8 @@ class UnifiedAuthenticationMiddleware
 
             return $next($request);
         } catch (\Exception $e) {
-            Log::error('API key authentication error: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('API key authentication error: '.$e->getMessage(), ['exception' => $e]);
+
             return $this->unauthorizedResponse('API key authentication failed');
         }
     }
@@ -140,16 +141,16 @@ class UnifiedAuthenticationMiddleware
     {
         try {
             $token = Str::substr($authHeader, 7);
-            
+
             // Validate token with identity service
             $user = $this->validateTokenWithIdentityService($token);
-            if (!$user) {
+            if (! $user) {
                 return $this->unauthorizedResponse('Invalid or expired token');
             }
 
             // Validate tenant context
             $tenantValidation = $this->validateTenantContext($request, $user);
-            if (!$tenantValidation['valid']) {
+            if (! $tenantValidation['valid']) {
                 return $this->unauthorizedResponse($tenantValidation['message']);
             }
 
@@ -161,18 +162,18 @@ class UnifiedAuthenticationMiddleware
                 $request->merge(['tenant_id' => null]);
             } else {
                 $tenantId = $user['tenant_id'];
-                
+
                 // Get tenant information from database
                 $tenant = DB::connection('pgsql')
                     ->table('tenants')
                     ->where('id', $tenantId)
                     ->where('is_active', true)
                     ->first();
-                
+
                 $request->merge([
                     'tenant_id' => $tenantId,
                     'tenant_domain' => $tenant->domain ?? null,
-                    'tenant_name' => $tenant->name ?? null
+                    'tenant_name' => $tenant->name ?? null,
                 ]);
                 $this->hybridDatabaseService->switchToTenantDatabase($tenantId);
             }
@@ -188,7 +189,8 @@ class UnifiedAuthenticationMiddleware
 
             return $next($request);
         } catch (\Exception $e) {
-            Log::error('OAuth2 authentication error: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('OAuth2 authentication error: '.$e->getMessage(), ['exception' => $e]);
+
             return $this->unauthorizedResponse('OAuth2 authentication failed');
         }
     }
@@ -204,16 +206,17 @@ class UnifiedAuthenticationMiddleware
         }
 
         $identityServiceUrl = Config::get('services.identity_service.url');
-        if (!$identityServiceUrl) {
+        if (! $identityServiceUrl) {
             Log::error('IDENTITY_SERVICE_URL is not configured.');
+
             return null;
         }
 
         try {
             $response = Http::withHeaders([
                 'Accept' => 'application/json',
-                'Authorization' => 'Bearer ' . $token,
-            ])->post($identityServiceUrl . '/api/v1/auth/validate-token');
+                'Authorization' => 'Bearer '.$token,
+            ])->post($identityServiceUrl.'/api/v1/auth/validate-token');
 
             if ($response->successful()) {
                 return $response->json('data.user');
@@ -223,9 +226,11 @@ class UnifiedAuthenticationMiddleware
                 'status' => $response->status(),
                 'response' => $response->body(),
             ]);
+
             return null;
         } catch (\Exception $e) {
-            Log::error('Error validating token with identity service: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('Error validating token with identity service: '.$e->getMessage(), ['exception' => $e]);
+
             return null;
         }
     }
@@ -238,7 +243,7 @@ class UnifiedAuthenticationMiddleware
         try {
             // Decode JWT to get the JTI (token ID)
             $payload = $this->decodeJwtPayload($token);
-            if (!$payload || !isset($payload['jti'])) {
+            if (! $payload || ! isset($payload['jti'])) {
                 return null;
             }
 
@@ -246,13 +251,13 @@ class UnifiedAuthenticationMiddleware
 
             // Use Passport to validate the token
             $tokenModel = \Laravel\Passport\Token::where('id', $tokenId)->first();
-            if (!$tokenModel || $tokenModel->revoked) {
+            if (! $tokenModel || $tokenModel->revoked) {
                 return null;
             }
 
             // Get user from token
             $user = \App\Models\User::find($tokenModel->user_id);
-            if (!$user || !$user->is_active) {
+            if (! $user || ! $user->is_active) {
                 return null;
             }
 
@@ -265,7 +270,8 @@ class UnifiedAuthenticationMiddleware
                 'is_active' => $user->is_active,
             ];
         } catch (\Exception $e) {
-            Log::error('Error validating token locally: ' . $e->getMessage(), ['exception' => $e]);
+            Log::error('Error validating token locally: '.$e->getMessage(), ['exception' => $e]);
+
             return null;
         }
     }
@@ -284,10 +290,11 @@ class UnifiedAuthenticationMiddleware
             $payload = $parts[1];
             $payload = str_replace(['-', '_'], ['+', '/'], $payload);
             $payload = base64_decode($payload);
-            
+
             return json_decode($payload, true);
         } catch (\Exception $e) {
-            Log::error('Error decoding JWT payload: ' . $e->getMessage());
+            Log::error('Error decoding JWT payload: '.$e->getMessage());
+
             return null;
         }
     }
@@ -335,15 +342,16 @@ class UnifiedAuthenticationMiddleware
         }
 
         // Check if user has tenant_id
-        if (!isset($user['tenant_id']) || empty($user['tenant_id'])) {
+        if (! isset($user['tenant_id']) || empty($user['tenant_id'])) {
             Log::warning('OAuth2 authentication: User missing tenant_id', [
                 'user_id' => $user['id'] ?? 'N/A',
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
             return [
                 'valid' => false,
-                'message' => 'Tenant ID not found in token payload'
+                'message' => 'Tenant ID not found in token payload',
             ];
         }
 
@@ -354,21 +362,22 @@ class UnifiedAuthenticationMiddleware
             ->where('is_active', true)
             ->first();
 
-        if (!$tenant) {
+        if (! $tenant) {
             Log::warning('OAuth2 authentication: Tenant not found or inactive', [
                 'user_id' => $user['id'] ?? 'N/A',
                 'tenant_id' => $user['tenant_id'],
                 'ip' => $request->ip(),
             ]);
+
             return [
                 'valid' => false,
-                'message' => 'Tenant not found or inactive'
+                'message' => 'Tenant not found or inactive',
             ];
         }
 
         // Set tenant domain from database
         $requestedTenantDomain = $tenant->domain;
-        
+
         // Optional: Validate X-Tenant-Domain header if provided (for backward compatibility)
         $headerTenantDomain = $request->header('X-Tenant-Domain');
         if ($headerTenantDomain && $headerTenantDomain !== $requestedTenantDomain) {
@@ -379,9 +388,10 @@ class UnifiedAuthenticationMiddleware
                 'provided_domain' => $headerTenantDomain,
                 'ip' => $request->ip(),
             ]);
+
             return [
                 'valid' => false,
-                'message' => "Token is valid for '{$requestedTenantDomain}' but requested '{$headerTenantDomain}'"
+                'message' => "Token is valid for '{$requestedTenantDomain}' but requested '{$headerTenantDomain}'",
             ];
         }
 
@@ -401,10 +411,10 @@ class UnifiedAuthenticationMiddleware
                 ->where('is_active', true)
                 ->first();
 
-            if (!$tenant) {
+            if (! $tenant) {
                 return [
                     'valid' => false,
-                    'message' => 'User tenant not found or inactive'
+                    'message' => 'User tenant not found or inactive',
                 ];
             }
 
@@ -412,21 +422,21 @@ class UnifiedAuthenticationMiddleware
             if ($tenant->domain !== $requestedTenantDomain) {
                 return [
                     'valid' => false,
-                    'message' => "Token is valid for '{$tenant->domain}' but requested '{$requestedTenantDomain}'"
+                    'message' => "Token is valid for '{$tenant->domain}' but requested '{$requestedTenantDomain}'",
                 ];
             }
 
             return ['valid' => true, 'message' => 'Tenant domain matches'];
         } catch (\Exception $e) {
-            Log::error('Error validating tenant domain match: ' . $e->getMessage(), [
+            Log::error('Error validating tenant domain match: '.$e->getMessage(), [
                 'user_tenant_id' => $userTenantId,
                 'requested_domain' => $requestedTenantDomain,
-                'exception' => $e
+                'exception' => $e,
             ]);
-            
+
             return [
                 'valid' => false,
-                'message' => 'Error validating tenant access'
+                'message' => 'Error validating tenant access',
             ];
         }
     }
@@ -437,14 +447,20 @@ class UnifiedAuthenticationMiddleware
     protected function setAuthenticatedUser(Request $request, array $user): void
     {
         // Create a generic user object for Laravel's auth system
-        $userModel = new class {
+        $userModel = new class
+        {
             public $id;
+
             public $name;
+
             public $email;
+
             public $role;
+
             public $tenant_id;
+
             public $is_active;
-            
+
             public function toArray()
             {
                 return [
@@ -457,14 +473,14 @@ class UnifiedAuthenticationMiddleware
                 ];
             }
         };
-        
+
         $userModel->id = $user['id'];
         $userModel->name = $user['name'];
         $userModel->email = $user['email'];
         $userModel->role = $user['role'];
         $userModel->tenant_id = $user['tenant_id'] ?? null;
         $userModel->is_active = $user['is_active'] ?? true;
-        
+
         // Set the user in the request
         $request->setUserResolver(function () use ($userModel) {
             return $userModel;
@@ -485,11 +501,11 @@ class UnifiedAuthenticationMiddleware
                 [
                     'authentication_method' => 'oauth2',
                     'tenant_domain' => $request->header('X-Tenant-Domain', 'derived_from_tenant_id'),
-                    'user_role' => $user['role'] ?? 'unknown'
+                    'user_role' => $user['role'] ?? 'unknown',
                 ]
             );
         } catch (\Exception $e) {
-            Log::error('Failed to log authentication success: ' . $e->getMessage());
+            Log::error('Failed to log authentication success: '.$e->getMessage());
         }
     }
 
@@ -499,15 +515,16 @@ class UnifiedAuthenticationMiddleware
     protected function validateApiKeyTenantContext(Request $request, array $apiKeyData): array
     {
         // Check if API key has tenant_id
-        if (!isset($apiKeyData['tenant_id']) || empty($apiKeyData['tenant_id'])) {
+        if (! isset($apiKeyData['tenant_id']) || empty($apiKeyData['tenant_id'])) {
             Log::warning('API key authentication: API key missing tenant_id', [
                 'api_key_id' => $apiKeyData['id'] ?? 'N/A',
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
             return [
                 'valid' => false,
-                'message' => 'API key tenant ID not found'
+                'message' => 'API key tenant ID not found',
             ];
         }
 
@@ -518,24 +535,25 @@ class UnifiedAuthenticationMiddleware
             ->where('is_active', true)
             ->first();
 
-        if (!$tenant) {
+        if (! $tenant) {
             Log::warning('API key authentication: Tenant not found or inactive', [
                 'api_key_id' => $apiKeyData['id'] ?? 'N/A',
                 'tenant_id' => $apiKeyData['tenant_id'],
                 'ip' => $request->ip(),
             ]);
+
             return [
                 'valid' => false,
-                'message' => 'Tenant not found or inactive'
+                'message' => 'Tenant not found or inactive',
             ];
         }
 
         // Set tenant domain from database
         $requestedTenantDomain = $tenant->domain;
-        
+
         // Optional: Validate X-Tenant-Domain header if provided (for backward compatibility)
         $headerTenantDomain = $request->header('X-Tenant-Domain');
-        
+
         if ($headerTenantDomain && $headerTenantDomain !== $requestedTenantDomain) {
             Log::warning('API key authentication: X-Tenant-Domain header mismatch', [
                 'api_key_id' => $apiKeyData['id'] ?? 'N/A',
@@ -544,9 +562,10 @@ class UnifiedAuthenticationMiddleware
                 'provided_domain' => $headerTenantDomain,
                 'ip' => $request->ip(),
             ]);
+
             return [
                 'valid' => false,
-                'message' => "API key is valid for '{$requestedTenantDomain}' but requested '{$headerTenantDomain}'"
+                'message' => "API key is valid for '{$requestedTenantDomain}' but requested '{$headerTenantDomain}'",
             ];
         }
 
@@ -567,11 +586,11 @@ class UnifiedAuthenticationMiddleware
                 [
                     'authentication_method' => 'api_key',
                     'tenant_domain' => $request->header('X-Tenant-Domain', 'derived_from_tenant_id'),
-                    'api_key_name' => $apiKeyData['name'] ?? 'unknown'
+                    'api_key_name' => $apiKeyData['name'] ?? 'unknown',
                 ]
             );
         } catch (\Exception $e) {
-            Log::error('Failed to log API key authentication success: ' . $e->getMessage());
+            Log::error('Failed to log API key authentication success: '.$e->getMessage());
         }
     }
 
@@ -590,7 +609,7 @@ class UnifiedAuthenticationMiddleware
                 $context
             );
         } catch (\Exception $e) {
-            Log::error('Failed to log security event: ' . $e->getMessage());
+            Log::error('Failed to log security event: '.$e->getMessage());
         }
     }
 }

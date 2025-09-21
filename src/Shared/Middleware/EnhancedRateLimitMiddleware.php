@@ -6,15 +6,18 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redis;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnhancedRateLimitMiddleware
 {
     private const RATE_LIMIT_PREFIX = 'rate_limit_';
+
     private const RATE_LIMIT_TTL = 3600; // 1 hour
+
     private const DEFAULT_LIMIT = 1000; // requests per hour
+
     private const BURST_LIMIT = 50; // requests per minute (reduced for testing)
+
     private const BURST_TTL = 60; // 1 minute
 
     /**
@@ -23,7 +26,7 @@ class EnhancedRateLimitMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         $identifier = $this->getRateLimitIdentifier($request);
-        
+
         // Check burst limit (per minute)
         if ($this->isBurstLimited($identifier)) {
             return $this->rateLimitedResponse('Burst rate limit exceeded', 60);
@@ -52,18 +55,19 @@ class EnhancedRateLimitMiddleware
         // Use API key if present
         $apiKey = $request->header('HRMS-Client-Secret');
         if ($apiKey) {
-            return 'api_key_' . hash('sha256', $apiKey);
+            return 'api_key_'.hash('sha256', $apiKey);
         }
 
         // Use OAuth2 token if present
         $authHeader = $request->header('Authorization');
         if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
             $token = substr($authHeader, 7);
-            return 'oauth_' . hash('sha256', $token);
+
+            return 'oauth_'.hash('sha256', $token);
         }
 
         // Use IP address as fallback
-        return 'ip_' . $request->ip();
+        return 'ip_'.$request->ip();
     }
 
     /**
@@ -71,7 +75,7 @@ class EnhancedRateLimitMiddleware
      */
     private function isBurstLimited(string $identifier): bool
     {
-        $key = self::RATE_LIMIT_PREFIX . 'burst_' . $identifier;
+        $key = self::RATE_LIMIT_PREFIX.'burst_'.$identifier;
         $count = Cache::get($key, 0);
 
         return $count >= self::BURST_LIMIT;
@@ -82,7 +86,7 @@ class EnhancedRateLimitMiddleware
      */
     private function isRateLimited(string $identifier): bool
     {
-        $key = self::RATE_LIMIT_PREFIX . 'hourly_' . $identifier;
+        $key = self::RATE_LIMIT_PREFIX.'hourly_'.$identifier;
         $count = Cache::get($key, 0);
 
         return $count >= self::DEFAULT_LIMIT;
@@ -94,12 +98,12 @@ class EnhancedRateLimitMiddleware
     private function incrementCounters(string $identifier): void
     {
         // Increment burst counter (per minute)
-        $burstKey = self::RATE_LIMIT_PREFIX . 'burst_' . $identifier;
+        $burstKey = self::RATE_LIMIT_PREFIX.'burst_'.$identifier;
         Cache::increment($burstKey);
         Cache::put($burstKey, Cache::get($burstKey, 0), self::BURST_TTL);
 
         // Increment hourly counter
-        $hourlyKey = self::RATE_LIMIT_PREFIX . 'hourly_' . $identifier;
+        $hourlyKey = self::RATE_LIMIT_PREFIX.'hourly_'.$identifier;
         Cache::increment($hourlyKey);
         Cache::put($hourlyKey, Cache::get($hourlyKey, 0), self::RATE_LIMIT_TTL);
 
@@ -120,8 +124,8 @@ class EnhancedRateLimitMiddleware
      */
     private function addRateLimitHeaders(Response $response, string $identifier): void
     {
-        $burstKey = self::RATE_LIMIT_PREFIX . 'burst_' . $identifier;
-        $hourlyKey = self::RATE_LIMIT_PREFIX . 'hourly_' . $identifier;
+        $burstKey = self::RATE_LIMIT_PREFIX.'burst_'.$identifier;
+        $hourlyKey = self::RATE_LIMIT_PREFIX.'hourly_'.$identifier;
 
         $burstCount = Cache::get($burstKey, 0);
         $hourlyCount = Cache::get($hourlyKey, 0);
@@ -160,8 +164,8 @@ class EnhancedRateLimitMiddleware
      */
     public static function getRateLimitStatus(string $identifier): array
     {
-        $burstKey = self::RATE_LIMIT_PREFIX . 'burst_' . $identifier;
-        $hourlyKey = self::RATE_LIMIT_PREFIX . 'hourly_' . $identifier;
+        $burstKey = self::RATE_LIMIT_PREFIX.'burst_'.$identifier;
+        $hourlyKey = self::RATE_LIMIT_PREFIX.'hourly_'.$identifier;
 
         $burstCount = Cache::get($burstKey, 0);
         $hourlyCount = Cache::get($hourlyKey, 0);
@@ -187,8 +191,8 @@ class EnhancedRateLimitMiddleware
      */
     public static function resetRateLimit(string $identifier): void
     {
-        $burstKey = self::RATE_LIMIT_PREFIX . 'burst_' . $identifier;
-        $hourlyKey = self::RATE_LIMIT_PREFIX . 'hourly_' . $identifier;
+        $burstKey = self::RATE_LIMIT_PREFIX.'burst_'.$identifier;
+        $hourlyKey = self::RATE_LIMIT_PREFIX.'hourly_'.$identifier;
 
         Cache::forget($burstKey);
         Cache::forget($hourlyKey);

@@ -2,14 +2,15 @@
 
 namespace Shared\Tests\Unit;
 
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use PHPUnit\Framework\TestCase;
 use Shared\Events\EventSubscriber;
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Log;
 
 class EventSubscriberTest extends TestCase
 {
     private EventSubscriber $eventSubscriber;
+
     private string $serviceName = 'test-service';
 
     protected function setUp(): void
@@ -38,7 +39,7 @@ class EventSubscriberTest extends TestCase
             },
             'employee.updated' => function ($payload, $metadata) {
                 return 'updated';
-            }
+            },
         ];
 
         $this->eventSubscriber->registerHandlers($handlers);
@@ -102,7 +103,7 @@ class EventSubscriberTest extends TestCase
         $eventData = json_encode([
             'event_name' => 'employee.created',
             'payload' => ['id' => 'test-id'],
-            'metadata' => ['service' => 'test-service']
+            'metadata' => ['service' => 'test-service'],
         ]);
 
         $this->eventSubscriber->handleEvent($eventData);
@@ -123,7 +124,7 @@ class EventSubscriberTest extends TestCase
         $eventData = json_encode([
             'event_name' => 'employee.created',
             'payload' => ['id' => 'test-id'],
-            'metadata' => ['service' => 'other-service']
+            'metadata' => ['service' => 'other-service'],
         ]);
 
         $this->eventSubscriber->handleEvent($eventData);
@@ -143,7 +144,7 @@ class EventSubscriberTest extends TestCase
         $eventData = json_encode([
             'event_name' => 'unknown.event',
             'payload' => ['id' => 'test-id'],
-            'metadata' => ['service' => 'other-service']
+            'metadata' => ['service' => 'other-service'],
         ]);
 
         $this->eventSubscriber->handleEvent($eventData);
@@ -167,7 +168,7 @@ class EventSubscriberTest extends TestCase
         $eventData = json_encode([
             'event_name' => 'employee.created',
             'payload' => ['id' => 'test-id'],
-            'metadata' => ['service' => 'other-service']
+            'metadata' => ['service' => 'other-service'],
         ]);
 
         $this->eventSubscriber->handleEvent($eventData);
@@ -191,7 +192,7 @@ class EventSubscriberTest extends TestCase
         $eventData = json_encode([
             'event_name' => 'employee.created',
             'payload' => ['id' => 'test-id'],
-            'metadata' => ['service' => 'other-service', 'event_id' => 'test-event-id']
+            'metadata' => ['service' => 'other-service', 'event_id' => 'test-event-id'],
         ]);
 
         $this->eventSubscriber->handleEvent($eventData);

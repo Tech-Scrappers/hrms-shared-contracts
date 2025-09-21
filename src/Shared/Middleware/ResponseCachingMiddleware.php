@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 class ResponseCachingMiddleware
 {
     private array $cacheableMethods = ['GET', 'HEAD'];
+
     private array $cacheablePaths = [
         'health',
         'employees',
@@ -17,7 +18,7 @@ class ResponseCachingMiddleware
         'branches',
         'attendance',
         'leave-requests',
-        'work-schedules'
+        'work-schedules',
     ];
 
     /**
@@ -26,23 +27,23 @@ class ResponseCachingMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         // Only cache GET and HEAD requests
-        if (!in_array($request->method(), $this->cacheableMethods)) {
+        if (! in_array($request->method(), $this->cacheableMethods)) {
             return $next($request);
         }
 
         // Check if path is cacheable
-        if (!$this->isCacheablePath($request->path())) {
+        if (! $this->isCacheablePath($request->path())) {
             return $next($request);
         }
 
         // Check if caching is enabled
-        if (!config('cache.enable_response_caching', true)) {
+        if (! config('cache.enable_response_caching', true)) {
             return $next($request);
         }
 
         // Generate cache key
         $cacheKey = $this->generateCacheKey($request);
-        
+
         // Try to get cached response
         $cachedResponse = $this->getCachedResponse($cacheKey);
         if ($cachedResponse) {
@@ -70,7 +71,7 @@ class ResponseCachingMiddleware
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -83,10 +84,10 @@ class ResponseCachingMiddleware
         $path = $request->path();
         $queryString = $request->getQueryString() ?: '';
         $userAgent = $request->header('User-Agent', '');
-        
+
         // Create a hash of the request parameters
-        $requestHash = md5($path . $queryString . $userAgent);
-        
+        $requestHash = md5($path.$queryString.$userAgent);
+
         return "response_cache:tenant:{$tenantId}:{$requestHash}";
     }
 
@@ -100,8 +101,9 @@ class ResponseCachingMiddleware
         } catch (\Exception $e) {
             \Log::warning('Failed to get cached response', [
                 'cache_key' => $cacheKey,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -112,17 +114,17 @@ class ResponseCachingMiddleware
     private function createResponseFromCache(array $cachedData): Response
     {
         $response = response($cachedData['content'], $cachedData['status_code']);
-        
+
         // Restore headers
         foreach ($cachedData['headers'] as $name => $value) {
             $response->headers->set($name, $value);
         }
-        
+
         // Add cache hit header
         $response->headers->set('X-Cache', 'HIT');
         $response->headers->set('X-Cache-Key', $cachedData['cache_key']);
         $response->headers->set('X-Cache-Timestamp', $cachedData['cached_at']);
-        
+
         return $response;
     }
 
@@ -137,7 +139,7 @@ class ResponseCachingMiddleware
         }
 
         // Don't cache responses with no-cache headers
-        if ($response->headers->has('Cache-Control') && 
+        if ($response->headers->has('Cache-Control') &&
             str_contains($response->headers->get('Cache-Control'), 'no-cache')) {
             return false;
         }
@@ -145,7 +147,7 @@ class ResponseCachingMiddleware
         // Don't cache responses that are too large
         $contentLength = strlen($response->getContent());
         $maxCacheSize = config('cache.max_response_size', 1024 * 1024); // 1MB default
-        
+
         if ($contentLength > $maxCacheSize) {
             return false;
         }
@@ -160,26 +162,26 @@ class ResponseCachingMiddleware
     {
         try {
             $ttl = $this->getCacheTTL($response);
-            
+
             $cacheData = [
                 'content' => $response->getContent(),
                 'status_code' => $response->getStatusCode(),
                 'headers' => $response->headers->all(),
                 'cache_key' => $cacheKey,
                 'cached_at' => now()->toISOString(),
-                'expires_at' => now()->addSeconds($ttl)->toISOString()
+                'expires_at' => now()->addSeconds($ttl)->toISOString(),
             ];
 
             Cache::put($cacheKey, $cacheData, $ttl);
-            
+
             // Add cache miss header
             $response->headers->set('X-Cache', 'MISS');
             $response->headers->set('X-Cache-TTL', $ttl);
-            
+
         } catch (\Exception $e) {
             \Log::warning('Failed to cache response', [
                 'cache_key' => $cacheKey,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -190,22 +192,22 @@ class ResponseCachingMiddleware
     private function getCacheTTL(Response $response): int
     {
         $path = request()->path();
-        
+
         // Health checks - short TTL
         if (str_contains($path, 'health')) {
             return 30; // 30 seconds
         }
-        
+
         // Static data - longer TTL
         if (str_contains($path, 'departments') || str_contains($path, 'branches')) {
             return 300; // 5 minutes
         }
-        
+
         // Dynamic data - shorter TTL
         if (str_contains($path, 'employees') || str_contains($path, 'attendance')) {
             return 60; // 1 minute
         }
-        
+
         // Default TTL
         return 120; // 2 minutes
     }
@@ -217,24 +219,25 @@ class ResponseCachingMiddleware
     {
         try {
             $pattern = "response_cache:tenant:{$tenantId}:*";
-            
+
             if (config('cache.default') === 'redis') {
                 $redis = Cache::getRedis();
                 $keys = $redis->keys($pattern);
-                
-                if (!empty($keys)) {
+
+                if (! empty($keys)) {
                     $redis->del($keys);
                 }
-                
+
                 return true;
             }
-            
+
             return false;
         } catch (\Exception $e) {
             \Log::error('Failed to clear tenant response cache', [
                 'tenant_id' => $tenantId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -245,24 +248,25 @@ class ResponseCachingMiddleware
     public function clearAllCache(): bool
     {
         try {
-            $pattern = "response_cache:tenant:*";
-            
+            $pattern = 'response_cache:tenant:*';
+
             if (config('cache.default') === 'redis') {
                 $redis = Cache::getRedis();
                 $keys = $redis->keys($pattern);
-                
-                if (!empty($keys)) {
+
+                if (! empty($keys)) {
                     $redis->del($keys);
                 }
-                
+
                 return true;
             }
-            
+
             return false;
         } catch (\Exception $e) {
             \Log::error('Failed to clear all response cache', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }

@@ -3,20 +3,24 @@
 namespace Shared\Middleware;
 
 use Closure;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Shared\Services\ApiKeyService;
 use Shared\Services\TenantDatabaseService;
-use Exception;
 
 class ApiKeyAuthenticationMiddleware
 {
     private const CACHE_PREFIX = 'api_key_';
+
     private const CACHE_TTL = 300; // 5 minutes
+
     private const RATE_LIMIT_PREFIX = 'rate_limit_';
+
     private const RATE_LIMIT_TTL = 3600; // 1 hour
+
     private const MAX_REQUESTS_PER_HOUR = 1000;
 
     public function __construct(
@@ -27,8 +31,6 @@ class ApiKeyAuthenticationMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param Request $request
-     * @param Closure $next
      * @return JsonResponse
      */
     public function handle(Request $request, Closure $next): \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
@@ -36,13 +38,13 @@ class ApiKeyAuthenticationMiddleware
         try {
             // Extract API key from request
             $apiKey = $this->extractApiKey($request);
-            
-            if (!$apiKey) {
+
+            if (! $apiKey) {
                 return $this->unauthorizedResponse('API key is required');
             }
 
             // Validate API key format
-            if (!$this->isValidApiKeyFormat($apiKey)) {
+            if (! $this->isValidApiKeyFormat($apiKey)) {
                 return $this->unauthorizedResponse('Invalid API key format');
             }
 
@@ -53,25 +55,25 @@ class ApiKeyAuthenticationMiddleware
 
             // Validate API key and get tenant information
             $apiKeyData = $this->validateApiKey($apiKey);
-            
-            if (!$apiKeyData) {
+
+            if (! $apiKeyData) {
                 return $this->unauthorizedResponse('Invalid API key');
             }
 
             // Check if API key is active and not expired
-            if (!$this->isApiKeyValid($apiKeyData)) {
+            if (! $this->isApiKeyValid($apiKeyData)) {
                 return $this->unauthorizedResponse('API key is inactive or expired');
             }
 
             // Get tenant information
             $tenant = $this->getTenantInformation($apiKeyData['tenant_id']);
-            
-            if (!$tenant) {
+
+            if (! $tenant) {
                 return $this->unauthorizedResponse('Tenant not found');
             }
 
             // Check if tenant is active
-            if (!$tenant['is_active']) {
+            if (! $tenant['is_active']) {
                 return $this->unauthorizedResponse('Tenant is inactive');
             }
 
@@ -109,9 +111,6 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Extract API key from request headers or query parameters
-     *
-     * @param Request $request
-     * @return string|null
      */
     private function extractApiKey(Request $request): ?string
     {
@@ -138,9 +137,6 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Validate API key format
-     *
-     * @param string $apiKey
-     * @return bool
      */
     private function isValidApiKeyFormat(string $apiKey): bool
     {
@@ -150,13 +146,10 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Check if API key is rate limited
-     *
-     * @param string $apiKey
-     * @return bool
      */
     private function isRateLimited(string $apiKey): bool
     {
-        $cacheKey = self::RATE_LIMIT_PREFIX . hash('sha256', $apiKey);
+        $cacheKey = self::RATE_LIMIT_PREFIX.hash('sha256', $apiKey);
         $requestCount = Cache::get($cacheKey, 0);
 
         if ($requestCount >= self::MAX_REQUESTS_PER_HOUR) {
@@ -164,19 +157,17 @@ class ApiKeyAuthenticationMiddleware
         }
 
         Cache::put($cacheKey, $requestCount + 1, self::RATE_LIMIT_TTL);
+
         return false;
     }
 
     /**
      * Validate API key and return key data
-     *
-     * @param string $apiKey
-     * @return array|null
      */
     private function validateApiKey(string $apiKey): ?array
     {
-        $cacheKey = self::CACHE_PREFIX . hash('sha256', $apiKey);
-        
+        $cacheKey = self::CACHE_PREFIX.hash('sha256', $apiKey);
+
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($apiKey) {
             return $this->apiKeyService->validateApiKey($apiKey);
         });
@@ -184,14 +175,11 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Check if API key is valid (active and not expired)
-     *
-     * @param array $apiKeyData
-     * @return bool
      */
     private function isApiKeyValid(array $apiKeyData): bool
     {
         // Check if API key is active
-        if (!$apiKeyData['is_active']) {
+        if (! $apiKeyData['is_active']) {
             return false;
         }
 
@@ -205,9 +193,6 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Get tenant information
-     *
-     * @param string $tenantId
-     * @return array|null
      */
     private function getTenantInformation(string $tenantId): ?array
     {
@@ -216,11 +201,6 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Add authentication context to request
-     *
-     * @param Request $request
-     * @param array $apiKeyData
-     * @param array $tenant
-     * @return void
      */
     private function addAuthenticationContext(Request $request, array $apiKeyData, array $tenant): void
     {
@@ -245,10 +225,6 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Log API key usage
-     *
-     * @param array $apiKeyData
-     * @param Request $request
-     * @return void
      */
     private function logApiKeyUsage(array $apiKeyData, Request $request): void
     {
@@ -266,9 +242,6 @@ class ApiKeyAuthenticationMiddleware
 
     /**
      * Update last used timestamp for API key
-     *
-     * @param string $apiKeyId
-     * @return void
      */
     private function updateLastUsedTimestamp(string $apiKeyId): void
     {
@@ -285,7 +258,6 @@ class ApiKeyAuthenticationMiddleware
     /**
      * Return unauthorized response
      *
-     * @param string $message
      * @return JsonResponse
      */
     private function unauthorizedResponse(string $message): \Illuminate\Http\JsonResponse
@@ -300,7 +272,6 @@ class ApiKeyAuthenticationMiddleware
     /**
      * Return rate limited response
      *
-     * @param string $message
      * @return JsonResponse
      */
     private function rateLimitedResponse(string $message): \Illuminate\Http\JsonResponse
@@ -316,7 +287,6 @@ class ApiKeyAuthenticationMiddleware
     /**
      * Return server error response
      *
-     * @param string $message
      * @return JsonResponse
      */
     private function serverErrorResponse(string $message): \Illuminate\Http\JsonResponse

@@ -3,8 +3,8 @@
 namespace Shared\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class PayloadSizeLimitMiddleware
@@ -17,8 +17,6 @@ class PayloadSizeLimitMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
      * @return mixed
      */
     public function handle(Request $request, Closure $next)
@@ -40,16 +38,16 @@ class PayloadSizeLimitMiddleware
 
             return $next($request);
         } catch (\Exception $e) {
-            Log::error('PayloadSizeLimitMiddleware error: ' . $e->getMessage(), [
+            Log::error('PayloadSizeLimitMiddleware error: '.$e->getMessage(), [
                 'exception' => $e,
                 'url' => $request->fullUrl(),
                 'method' => $request->method(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Request processing failed',
-                'error_code' => 'REQUEST_ERROR'
+                'error_code' => 'REQUEST_ERROR',
             ], 500);
         }
     }
@@ -66,7 +64,7 @@ class PayloadSizeLimitMiddleware
             'max_size' => $this->maxPayloadSize,
             'actual_size' => $actualSize,
             'max_size_mb' => $maxSizeMB,
-            'actual_size_mb' => $actualSizeMB
+            'actual_size_mb' => $actualSizeMB,
         ]);
 
         return response()->json([
@@ -77,8 +75,8 @@ class PayloadSizeLimitMiddleware
                 'max_size_bytes' => $this->maxPayloadSize,
                 'actual_size_bytes' => $actualSize,
                 'max_size_mb' => $maxSizeMB,
-                'actual_size_mb' => $actualSizeMB
-            ]
+                'actual_size_mb' => $actualSizeMB,
+            ],
         ], 413);
     }
 

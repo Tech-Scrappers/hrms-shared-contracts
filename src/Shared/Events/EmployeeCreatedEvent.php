@@ -12,17 +12,17 @@ class EmployeeCreatedEvent implements EventInterface
     ) {
         $this->tenantId = $tenantId ?? $employee['tenant_id'] ?? null;
     }
-    
+
     public function getEventName(): string
     {
         return 'employee.created';
     }
-    
+
     public function getPayload(): array
     {
         return $this->employee;
     }
-    
+
     public function getTenantId(): ?string
     {
         return $this->tenantId;

@@ -16,15 +16,15 @@ class StructuredLoggingMiddleware
     {
         $startTime = microtime(true);
         $requestId = $this->getRequestId($request);
-        
+
         // Log request
         $this->logRequest($request, $requestId);
-        
+
         $response = $next($request);
-        
+
         // Log response
         $this->logResponse($request, $response, $requestId, $startTime);
-        
+
         return $response;
     }
 
@@ -49,7 +49,7 @@ class StructuredLoggingMiddleware
             'content_type' => $request->header('Content-Type'),
             'content_length' => $request->header('Content-Length'),
             'query_params' => $this->sanitizeQueryParams($request->query()),
-            'message' => 'API request received'
+            'message' => 'API request received',
         ];
 
         // Add authentication info if available
@@ -73,7 +73,7 @@ class StructuredLoggingMiddleware
     {
         $executionTime = (microtime(true) - $startTime) * 1000; // Convert to milliseconds
         $statusCode = $response->getStatusCode();
-        
+
         $logData = [
             'timestamp' => now()->toISOString(),
             'level' => $this->getLogLevel($statusCode),
@@ -89,7 +89,7 @@ class StructuredLoggingMiddleware
             'response_time_ms' => (int) $executionTime,
             'ip_address' => $this->getClientIp($request),
             'user_agent' => $request->header('User-Agent'),
-            'message' => 'API response sent'
+            'message' => 'API response sent',
         ];
 
         // Add error details for error responses
@@ -102,7 +102,7 @@ class StructuredLoggingMiddleware
         $logData['performance'] = [
             'execution_time_ms' => (int) $executionTime,
             'memory_usage_mb' => round(memory_get_usage(true) / 1024 / 1024, 2),
-            'peak_memory_mb' => round(memory_get_peak_usage(true) / 1024 / 1024, 2)
+            'peak_memory_mb' => round(memory_get_peak_usage(true) / 1024 / 1024, 2),
         ];
 
         // Log based on status code
@@ -120,8 +120,8 @@ class StructuredLoggingMiddleware
      */
     private function getRequestId(Request $request): string
     {
-        return $request->header('X-Request-ID') ?: 
-               $request->header('X-Correlation-ID') ?: 
+        return $request->header('X-Request-ID') ?:
+               $request->header('X-Correlation-ID') ?:
                (string) \Illuminate\Support\Str::uuid();
     }
 
@@ -133,7 +133,7 @@ class StructuredLoggingMiddleware
         if ($request->has('auth_user')) {
             return $request->get('auth_user')['id'] ?? null;
         }
-        
+
         return null;
     }
 
@@ -142,8 +142,8 @@ class StructuredLoggingMiddleware
      */
     private function getTenantId(Request $request): ?string
     {
-        return $request->header('HRMS-Client-ID') ?: 
-               $request->get('tenant_id') ?: 
+        return $request->header('HRMS-Client-ID') ?:
+               $request->get('tenant_id') ?:
                null;
     }
 
@@ -159,12 +159,13 @@ class StructuredLoggingMiddleware
             'HTTP_X_CLUSTER_CLIENT_IP',
             'HTTP_FORWARDED_FOR',
             'HTTP_FORWARDED',
-            'REMOTE_ADDR'
+            'REMOTE_ADDR',
         ];
 
         foreach ($headers as $header) {
             if ($request->server($header)) {
                 $ips = explode(',', $request->server($header));
+
                 return trim($ips[0]);
             }
         }
@@ -178,13 +179,13 @@ class StructuredLoggingMiddleware
     private function sanitizeQueryParams(array $queryParams): array
     {
         $sensitiveKeys = ['password', 'token', 'secret', 'key', 'auth'];
-        
+
         foreach ($queryParams as $key => $value) {
             if (in_array(strtolower($key), $sensitiveKeys)) {
                 $queryParams[$key] = '[REDACTED]';
             }
         }
-        
+
         return $queryParams;
     }
 
@@ -193,7 +194,7 @@ class StructuredLoggingMiddleware
      */
     private function getLogLevel(int $statusCode): string
     {
-        return match(true) {
+        return match (true) {
             $statusCode >= 500 => 'ERROR',
             $statusCode >= 400 => 'WARNING',
             default => 'INFO'
@@ -207,9 +208,10 @@ class StructuredLoggingMiddleware
     {
         if ($response instanceof \Illuminate\Http\JsonResponse) {
             $data = $response->getData(true);
+
             return $data['error']['code'] ?? null;
         }
-        
+
         return null;
     }
 
@@ -220,9 +222,10 @@ class StructuredLoggingMiddleware
     {
         if ($response instanceof \Illuminate\Http\JsonResponse) {
             $data = $response->getData(true);
+
             return $data['error']['message'] ?? null;
         }
-        
+
         return null;
     }
 }

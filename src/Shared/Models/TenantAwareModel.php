@@ -2,8 +2,8 @@
 
 namespace Shared\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Shared\Contracts\TenantAwareInterface;
 use Shared\Traits\TenantAwareTrait;
@@ -52,23 +52,23 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
         if (request()->has('tenant_id')) {
             $tenantId = request()->get('tenant_id');
             $service = request()->get('service_name');
-            
+
             // Auto-detect service if not provided
-            if (!$service) {
+            if (! $service) {
                 $service = $this->detectServiceFromEnvironment();
             }
-            
+
             // Try service-specific connection first
             $connectionName = "tenant_{$tenantId}_{$service}";
             if (config("database.connections.{$connectionName}")) {
                 return static::resolveConnection($connectionName);
             }
-            
+
             // If connection doesn't exist, try to configure it
             if ($this->configureTenantConnection($tenantId, $service)) {
                 return static::resolveConnection($connectionName);
             }
-            
+
             // Fallback to generic tenant connection
             $connectionName = "tenant_{$tenantId}";
             if (config("database.connections.{$connectionName}")) {
@@ -81,10 +81,6 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
 
     /**
      * Configure tenant connection if it doesn't exist
-     *
-     * @param string $tenantId
-     * @param string $service
-     * @return bool
      */
     private function configureTenantConnection(string $tenantId, string $service): bool
     {
@@ -93,7 +89,7 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
             $databaseName = "tenant_{$tenantId}_{$service}";
             $username = "tenant_{$tenantId}_{$service}";
             $password = $this->generateSecurePassword($tenantId, $service);
-            
+
             // Configure the connection
             config([
                 "database.connections.{$connectionName}" => [
@@ -108,9 +104,9 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
                     'prefix_indexes' => true,
                     'search_path' => 'public',
                     'sslmode' => 'require',
-                ]
+                ],
             ]);
-            
+
             return true;
         } catch (\Exception $e) {
             return false;
@@ -119,52 +115,46 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
 
     /**
      * Generate a cryptographically secure password for tenant database
-     *
-     * @param string $tenantId
-     * @param string $service
-     * @return string
      */
     private function generateSecurePassword(string $tenantId, string $service): string
     {
         // Generate a secure random password using OpenSSL
         $randomBytes = random_bytes(32);
         $password = base64_encode($randomBytes);
-        
+
         // Add tenant and service context for uniqueness
-        $context = hash('sha256', $tenantId . $service . config('app.key'));
-        
+        $context = hash('sha256', $tenantId.$service.config('app.key'));
+
         // Combine and hash for final password
-        return hash('sha256', $password . $context);
+        return hash('sha256', $password.$context);
     }
 
     /**
      * Auto-detect the service name from the current environment
-     *
-     * @return string
      */
     private function detectServiceFromEnvironment(): string
     {
         // Check if we're in a specific service directory
         $appPath = app_path();
-        
+
         if (str_contains($appPath, 'employee-service')) {
             return 'employee';
         }
-        
-        if (str_contains($appPath, 'attendance-service')) {
-            return 'attendance';
+
+        if (str_contains($appPath, 'core-service')) {
+            return 'core';
         }
-        
+
         if (str_contains($appPath, 'identity-service')) {
             return 'identity';
         }
-        
+
         // Check environment variable
         $service = env('SERVICE_NAME');
         if ($service) {
             return $service;
         }
-        
+
         // Default fallback
         return 'employee';
     }
@@ -189,12 +179,12 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
     public function newInstance($attributes = [], $exists = false)
     {
         $model = parent::newInstance($attributes, $exists);
-        
+
         // Set tenant_id if available
         if (request()->has('tenant_id')) {
             $model->tenant_id = request()->get('tenant_id');
         }
-        
+
         return $model;
     }
 
@@ -206,12 +196,12 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
     public function newQuery()
     {
         $builder = parent::newQuery();
-        
+
         // Apply tenant scope if tenant_id is available
         if (request()->has('tenant_id')) {
             $builder->where('tenant_id', request()->get('tenant_id'));
         }
-        
+
         return $builder;
     }
 
@@ -223,19 +213,17 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
     public function newQueryWithoutScopes()
     {
         $builder = parent::newQueryWithoutScopes();
-        
+
         // Apply tenant scope if tenant_id is available
         if (request()->has('tenant_id')) {
             $builder->where('tenant_id', request()->get('tenant_id'));
         }
-        
+
         return $builder;
     }
 
     /**
      * Get the tenant ID for this model
-     *
-     * @return string
      */
     public function getTenantId(): string
     {
@@ -244,9 +232,6 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
 
     /**
      * Set the tenant ID for this model
-     *
-     * @param string $tenantId
-     * @return void
      */
     public function setTenantId(string $tenantId): void
     {
@@ -255,9 +240,6 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
 
     /**
      * Check if the model belongs to a specific tenant
-     *
-     * @param string $tenantId
-     * @return bool
      */
     public function belongsToTenant(string $tenantId): bool
     {
@@ -267,8 +249,7 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
     /**
      * Scope a query to only include records for a specific tenant
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param string $tenantId
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeForTenant($query, string $tenantId)
@@ -279,7 +260,7 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
     /**
      * Scope a query to only include records for the current tenant
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeForCurrentTenant($query)
@@ -287,7 +268,7 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
         if (request()->has('tenant_id')) {
             return $query->where('tenant_id', request()->get('tenant_id'));
         }
-        
+
         return $query;
     }
 }

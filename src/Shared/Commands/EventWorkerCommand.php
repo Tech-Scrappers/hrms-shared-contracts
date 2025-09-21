@@ -3,8 +3,8 @@
 namespace Shared\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use Shared\Events\EventSubscriber;
 
 class EventWorkerCommand extends Command
@@ -32,78 +32,80 @@ class EventWorkerCommand extends Command
     {
         $serviceName = $this->option('service') ?: env('SERVICE_NAME', 'default');
         $timeout = (int) $this->option('timeout');
-        
+
         $this->info("Starting event worker for service: {$serviceName}");
-        
+
         // Set up signal handlers for graceful shutdown
         if (function_exists('pcntl_signal')) {
             pcntl_signal(SIGTERM, [$this, 'handleShutdown']);
             pcntl_signal(SIGINT, [$this, 'handleShutdown']);
         }
-        
+
         $startTime = time();
-        
+
         try {
             $eventSubscriber = app(EventSubscriber::class);
-            
+
             // Register handlers
             $this->registerEventHandlers($eventSubscriber, $serviceName);
-            
+
             $this->info('Event handlers registered, starting to process events...');
-            
-            while (!$this->shouldStop) {
+
+            while (! $this->shouldStop) {
                 // Check for timeout
                 if ($timeout > 0 && (time() - $startTime) > $timeout) {
                     $this->info('Event worker timeout reached, stopping...');
                     break;
                 }
-                
+
                 // Process signals
                 if (function_exists('pcntl_signal_dispatch')) {
                     pcntl_signal_dispatch();
                 }
-                
+
                 try {
                     // Process events from Redis queue
                     $this->processEventsFromQueue($eventSubscriber);
-                    
+
                     // Process retry queue periodically
                     if (time() % 60 === 0) { // Every minute
                         $this->processRetryQueue($eventSubscriber);
                     }
-                    
+
                     // Small delay to prevent excessive CPU usage
                     usleep(100000); // 100ms
-                    
+
                 } catch (\Exception $e) {
                     Log::error('Error in event processing', [
                         'service' => $serviceName,
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString(),
                     ]);
-                    
+
                     $this->error("Error processing events: {$e->getMessage()}");
-                    
+
                     // Wait a bit before retrying
                     sleep(5);
                 }
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Fatal error in event worker command', [
                 'service' => $serviceName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             $this->error("Fatal error: {$e->getMessage()}");
+
             return 1;
         }
-        
+
         $this->info('Event worker stopped');
+
         return 0;
     }
-    
+
     /**
      * Register event handlers based on service
      */
@@ -113,7 +115,7 @@ class EventWorkerCommand extends Command
         // We just need to ensure the handlers are registered
         $this->info("Event handlers should be registered by EventServiceProvider for {$serviceName}");
     }
-    
+
     /**
      * Process events from Redis queue
      */
@@ -122,29 +124,29 @@ class EventWorkerCommand extends Command
         try {
             // Get events from Redis queue
             $events = Redis::lrange('hrms_events:queue', 0, 9); // Process up to 10 events at a time
-            
+
             if (empty($events)) {
                 return;
             }
-            
+
             foreach ($events as $eventJson) {
                 if ($this->shouldStop) {
                     break;
                 }
-                
+
                 try {
                     $eventData = json_decode($eventJson, true);
-                    
-                    if (!$eventData || !isset($eventData['event_name'])) {
+
+                    if (! $eventData || ! isset($eventData['event_name'])) {
                         continue;
                     }
-                    
+
                     // Process the event
                     $this->processEvent($eventData, $eventSubscriber);
-                    
+
                     // Remove processed event from queue
                     Redis::lrem('hrms_events:queue', 1, $eventJson);
-                    
+
                 } catch (\Exception $e) {
                     Log::error('Error processing individual event', [
                         'event' => $eventJson,
@@ -152,14 +154,14 @@ class EventWorkerCommand extends Command
                     ]);
                 }
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Error processing events from queue', [
                 'error' => $e->getMessage(),
             ]);
         }
     }
-    
+
     /**
      * Process a single event
      */
@@ -168,17 +170,17 @@ class EventWorkerCommand extends Command
         $eventName = $eventData['event_name'];
         $payload = $eventData['payload'] ?? [];
         $metadata = $eventData['metadata'] ?? [];
-        
+
         Log::info('Processing event', [
             'event_name' => $eventName,
             'event_id' => $metadata['event_id'] ?? 'unknown',
             'service' => $metadata['service'] ?? 'unknown',
         ]);
-        
+
         // Use reflection to call the appropriate handler method
         $this->callEventHandler($eventSubscriber, $eventName, $payload, $metadata);
     }
-    
+
     /**
      * Call event handler using reflection
      */
@@ -190,16 +192,17 @@ class EventWorkerCommand extends Command
             $handlersProperty = $reflection->getProperty('handlers');
             $handlersProperty->setAccessible(true);
             $handlers = $handlersProperty->getValue($eventSubscriber);
-            
-            if (!isset($handlers[$eventName])) {
+
+            if (! isset($handlers[$eventName])) {
                 Log::debug('No handler found for event', [
                     'event_name' => $eventName,
                 ]);
+
                 return;
             }
-            
+
             $handler = $handlers[$eventName];
-            
+
             if (is_callable($handler)) {
                 $handler($payload, $metadata);
             } else {
@@ -208,7 +211,7 @@ class EventWorkerCommand extends Command
                     'handler' => $handler,
                 ]);
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Error calling event handler', [
                 'event_name' => $eventName,
@@ -216,7 +219,7 @@ class EventWorkerCommand extends Command
             ]);
         }
     }
-    
+
     /**
      * Process retry queue for failed events
      */
@@ -225,53 +228,53 @@ class EventWorkerCommand extends Command
         try {
             // Process migration retry queue
             $retryEvents = Redis::lrange('migration_retry_queue', 0, 4); // Process up to 5 retry events
-            
+
             foreach ($retryEvents as $eventJson) {
                 if ($this->shouldStop) {
                     break;
                 }
-                
+
                 try {
                     $retryEvent = json_decode($eventJson, true);
-                    
-                    if (!$retryEvent || !isset($retryEvent['tenant']['id'])) {
+
+                    if (! $retryEvent || ! isset($retryEvent['tenant']['id'])) {
                         continue;
                     }
-                    
+
                     $currentRetryCount = $retryEvent['retry_count'] ?? 0;
                     $maxRetries = $retryEvent['max_retries'] ?? 3;
-                    
+
                     if ($currentRetryCount >= $maxRetries) {
                         // Move to permanently failed events
                         Redis::lrem('migration_retry_queue', 1, $eventJson);
                         Redis::lpush('permanently_failed_events', $eventJson);
                         continue;
                     }
-                    
+
                     // Retry migration events for failed services
                     $tenant = $retryEvent['tenant'];
                     $failedServices = $retryEvent['failed_services'] ?? [];
-                    
+
                     foreach ($failedServices as $service) {
                         $migrationEvent = new \Shared\Events\TenantMigrationEvent($tenant, $service, $tenant['id']);
                         $eventBus = new \Shared\Events\EventBus($service);
                         $eventBus->publish($migrationEvent);
                     }
-                    
+
                     // Update retry count
                     $retryEvent['retry_count'] = $currentRetryCount + 1;
                     $retryEvent['last_retry_at'] = now()->toISOString();
-                    
+
                     // Update the event in the queue
                     Redis::lrem('migration_retry_queue', 1, $eventJson);
                     Redis::lpush('migration_retry_queue', json_encode($retryEvent));
-                    
+
                     Log::info('Retried migration events', [
                         'tenant_id' => $tenant['id'],
                         'retry_count' => $retryEvent['retry_count'],
                         'failed_services' => $failedServices,
                     ]);
-                    
+
                 } catch (\Exception $e) {
                     Log::error('Error processing retry event', [
                         'event' => $eventJson,
@@ -279,7 +282,7 @@ class EventWorkerCommand extends Command
                     ]);
                 }
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Error processing retry queue', [
                 'error' => $e->getMessage(),

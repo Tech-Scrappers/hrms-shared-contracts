@@ -3,9 +3,8 @@
 namespace Shared\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class ResetHybridArchitectureCommand extends Command
 {
@@ -17,9 +16,10 @@ class ResetHybridArchitectureCommand extends Command
 
     public function handle(): int
     {
-        if (!$this->option('force')) {
-            if (!$this->confirm('This will drop ALL tenant databases and reset the entire hybrid architecture. Continue?')) {
+        if (! $this->option('force')) {
+            if (! $this->confirm('This will drop ALL tenant databases and reset the entire hybrid architecture. Continue?')) {
                 $this->info('Operation cancelled.');
+
                 return 0;
             }
         }
@@ -59,8 +59,9 @@ class ResetHybridArchitectureCommand extends Command
             return 0;
 
         } catch (\Exception $e) {
-            $this->error('❌ Reset failed: ' . $e->getMessage());
-            $this->error('📍 ' . $e->getFile() . ':' . $e->getLine());
+            $this->error('❌ Reset failed: '.$e->getMessage());
+            $this->error('📍 '.$e->getFile().':'.$e->getLine());
+
             return 1;
         }
     }
@@ -74,6 +75,7 @@ class ResetHybridArchitectureCommand extends Command
 
         if (empty($tenantDbs)) {
             $this->info('  No tenant databases found');
+
             return;
         }
 
@@ -111,7 +113,6 @@ class ResetHybridArchitectureCommand extends Command
         Artisan::call('migrate', ['--force' => true]);
     }
 
-
     private function createHybridTenantDatabases(): void
     {
         $this->info('🏗️  Creating hybrid tenant databases...');
@@ -129,7 +130,7 @@ class ResetHybridArchitectureCommand extends Command
             foreach ($services as $service) {
                 $databaseName = "tenant_{$tenant->id}_{$service}";
                 $userName = "tenant_{$tenant->id}_{$service}";
-                $password = hash('sha256', "tenant_{$tenant->id}_{$service}_" . time());
+                $password = hash('sha256', "tenant_{$tenant->id}_{$service}_".time());
 
                 $this->info("    Creating {$service} database: {$databaseName}");
 
@@ -150,10 +151,10 @@ class ResetHybridArchitectureCommand extends Command
     {
         // Connect to the tenant database and grant privileges
         $originalConnection = config('database.default');
-        
+
         config(['database.default' => 'pgsql']);
-        config(["database.connections.pgsql.database" => $databaseName]);
-        
+        config(['database.connections.pgsql.database' => $databaseName]);
+
         DB::purge('pgsql');
         DB::reconnect('pgsql');
 
@@ -166,7 +167,7 @@ class ResetHybridArchitectureCommand extends Command
         } finally {
             // Restore original connection
             config(['database.default' => $originalConnection]);
-            config(["database.connections.pgsql.database" => 'hrms_central']);
+            config(['database.connections.pgsql.database' => 'hrms_central']);
             DB::purge('pgsql');
             DB::reconnect('pgsql');
         }
@@ -186,9 +187,9 @@ class ResetHybridArchitectureCommand extends Command
                 $this->info("    Running {$service} migrations...");
 
                 $databaseName = "tenant_{$tenant->id}_{$service}";
-                
+
                 // Set the database for this service
-                config(["database.connections.pgsql.database" => $databaseName]);
+                config(['database.connections.pgsql.database' => $databaseName]);
                 DB::purge('pgsql');
                 DB::reconnect('pgsql');
 
@@ -196,13 +197,13 @@ class ResetHybridArchitectureCommand extends Command
                 $migrationPath = $this->getServiceMigrationPath($service);
                 Artisan::call('migrate', [
                     '--path' => $migrationPath,
-                    '--force' => true
+                    '--force' => true,
                 ]);
             }
         }
 
         // Restore central database connection
-        config(["database.connections.pgsql.database" => 'hrms_central']);
+        config(['database.connections.pgsql.database' => 'hrms_central']);
         DB::purge('pgsql');
         DB::reconnect('pgsql');
     }
@@ -221,22 +222,22 @@ class ResetHybridArchitectureCommand extends Command
                 $this->info("    Running {$service} fresh migrations...");
 
                 $databaseName = "tenant_{$tenant->id}_{$service}";
-                
+
                 // Set the database for this service
-                config(["database.connections.pgsql.database" => $databaseName]);
+                config(['database.connections.pgsql.database' => $databaseName]);
                 DB::purge('pgsql');
                 DB::reconnect('pgsql');
 
                 // Run migrate:fresh --seed for the service
                 Artisan::call('migrate:fresh', [
                     '--seed' => true,
-                    '--force' => true
+                    '--force' => true,
                 ]);
             }
         }
 
         // Restore central database connection
-        config(["database.connections.pgsql.database" => 'hrms_central']);
+        config(['database.connections.pgsql.database' => 'hrms_central']);
         DB::purge('pgsql');
         DB::reconnect('pgsql');
     }
@@ -255,9 +256,9 @@ class ResetHybridArchitectureCommand extends Command
                 $this->info("    Running {$service} seeders...");
 
                 $databaseName = "tenant_{$tenant->id}_{$service}";
-                
+
                 // Set the database for this service
-                config(["database.connections.pgsql.database" => $databaseName]);
+                config(['database.connections.pgsql.database' => $databaseName]);
                 DB::purge('pgsql');
                 DB::reconnect('pgsql');
 
@@ -265,21 +266,20 @@ class ResetHybridArchitectureCommand extends Command
                 $seederClass = $this->getServiceSeederClass($service);
                 Artisan::call('db:seed', [
                     '--class' => $seederClass,
-                    '--force' => true
+                    '--force' => true,
                 ]);
             }
         }
 
         // Restore central database connection
-        config(["database.connections.pgsql.database" => 'hrms_central']);
+        config(['database.connections.pgsql.database' => 'hrms_central']);
         DB::purge('pgsql');
         DB::reconnect('pgsql');
     }
 
-
     private function getServiceMigrationPath(string $service): string
     {
-        return match($service) {
+        return match ($service) {
             'identity' => 'database/migrations/identity',
             'employee' => 'database/migrations/employee',
             'attendance' => 'database/migrations/attendance',
@@ -289,7 +289,7 @@ class ResetHybridArchitectureCommand extends Command
 
     private function getServiceSeederClass(string $service): string
     {
-        return match($service) {
+        return match ($service) {
             'identity' => 'DatabaseSeeder',
             'employee' => 'DatabaseSeeder',
             'attendance' => 'DatabaseSeeder',

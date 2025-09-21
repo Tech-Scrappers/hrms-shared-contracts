@@ -3,10 +3,9 @@
 namespace Shared\Services;
 
 use App\Models\Tenant;
-use Shared\Services\TenantDatabaseService;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 use Exception;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class TenantManagementService
 {
@@ -17,8 +16,6 @@ class TenantManagementService
     /**
      * Create a new tenant with database
      *
-     * @param array $data
-     * @return Tenant
      * @throws Exception
      */
     public function createTenant(array $data): Tenant
@@ -66,9 +63,6 @@ class TenantManagementService
     /**
      * Update tenant
      *
-     * @param Tenant $tenant
-     * @param array $data
-     * @return Tenant
      * @throws Exception
      */
     public function updateTenant(Tenant $tenant, array $data): Tenant
@@ -101,8 +95,6 @@ class TenantManagementService
     /**
      * Delete tenant and its database
      *
-     * @param Tenant $tenant
-     * @return void
      * @throws Exception
      */
     public function deleteTenant(Tenant $tenant): void
@@ -135,8 +127,6 @@ class TenantManagementService
     /**
      * Activate tenant
      *
-     * @param Tenant $tenant
-     * @return Tenant
      * @throws Exception
      */
     public function activateTenant(Tenant $tenant): Tenant
@@ -147,8 +137,6 @@ class TenantManagementService
     /**
      * Deactivate tenant
      *
-     * @param Tenant $tenant
-     * @return Tenant
      * @throws Exception
      */
     public function deactivateTenant(Tenant $tenant): Tenant
@@ -158,9 +146,6 @@ class TenantManagementService
 
     /**
      * Get tenant by ID or domain
-     *
-     * @param string $identifier
-     * @return Tenant|null
      */
     public function getTenant(string $identifier): ?Tenant
     {
@@ -189,9 +174,6 @@ class TenantManagementService
 
     /**
      * Check if tenant exists
-     *
-     * @param string $identifier
-     * @return bool
      */
     public function tenantExists(string $identifier): bool
     {
@@ -200,21 +182,16 @@ class TenantManagementService
 
     /**
      * Check if tenant is active
-     *
-     * @param string $identifier
-     * @return bool
      */
     public function isTenantActive(string $identifier): bool
     {
         $tenant = $this->getTenant($identifier);
+
         return $tenant && $tenant->is_active;
     }
 
     /**
      * Get tenant statistics
-     *
-     * @param Tenant $tenant
-     * @return array
      */
     public function getTenantStatistics(Tenant $tenant): array
     {
@@ -280,8 +257,6 @@ class TenantManagementService
     /**
      * Validate tenant data
      *
-     * @param array $data
-     * @return void
      * @throws Exception
      */
     private function validateTenantData(array $data): void
@@ -302,27 +277,21 @@ class TenantManagementService
 
     /**
      * Generate database name
-     *
-     * @param string $tenantName
-     * @return string
      */
     private function generateDatabaseName(string $tenantName): string
     {
         $slug = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '_', $tenantName));
         $slug = trim($slug, '_');
-        
-        return 'hrms_tenant_' . $slug . '_' . time();
+
+        return 'hrms_tenant_'.$slug.'_'.time();
     }
 
     /**
      * Clear tenant cache
-     *
-     * @param Tenant $tenant
-     * @return void
      */
     private function clearTenantCache(Tenant $tenant): void
     {
-        Cache::forget('tenant_db_' . $tenant->id);
-        Cache::forget('tenant_db_' . $tenant->domain);
+        Cache::forget('tenant_db_'.$tenant->id);
+        Cache::forget('tenant_db_'.$tenant->domain);
     }
 }

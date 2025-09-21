@@ -12,17 +12,17 @@ class TenantDeletedEvent implements EventInterface
     ) {
         $this->tenantId = $tenantId ?? $tenant['id'] ?? null;
     }
-    
+
     public function getEventName(): string
     {
         return 'tenant.deleted';
     }
-    
+
     public function getPayload(): array
     {
         return $this->tenant;
     }
-    
+
     public function getTenantId(): ?string
     {
         return $this->tenantId;

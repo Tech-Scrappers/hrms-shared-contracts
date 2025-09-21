@@ -3,14 +3,16 @@
 namespace Shared\Services;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AuditLogService
 {
     private const AUDIT_LOG_CHANNEL = 'audit';
+
     private const CACHE_PREFIX = 'audit_log_';
+
     private const CACHE_TTL = 86400; // 24 hours
 
     /**
@@ -18,9 +20,9 @@ class AuditLogService
      */
     public function logAuthenticationEvent(
         string $event,
-        string $userId = null,
-        string $tenantId = null,
-        Request $request = null,
+        ?string $userId = null,
+        ?string $tenantId = null,
+        ?Request $request = null,
         array $metadata = []
     ): void {
         $this->logEvent([
@@ -39,9 +41,9 @@ class AuditLogService
      */
     public function logApiKeyEvent(
         string $event,
-        string $apiKeyId = null,
-        string $tenantId = null,
-        Request $request = null,
+        ?string $apiKeyId = null,
+        ?string $tenantId = null,
+        ?Request $request = null,
         array $metadata = []
     ): void {
         $this->logEvent([
@@ -61,8 +63,8 @@ class AuditLogService
     public function logTenantEvent(
         string $event,
         string $tenantId,
-        string $userId = null,
-        Request $request = null,
+        ?string $userId = null,
+        ?Request $request = null,
         array $metadata = []
     ): void {
         $this->logEvent([
@@ -82,10 +84,10 @@ class AuditLogService
     public function logDataAccessEvent(
         string $event,
         string $resourceType,
-        string $resourceId = null,
-        string $tenantId = null,
-        string $userId = null,
-        Request $request = null,
+        ?string $resourceId = null,
+        ?string $tenantId = null,
+        ?string $userId = null,
+        ?Request $request = null,
         array $metadata = []
     ): void {
         $this->logEvent([
@@ -107,9 +109,9 @@ class AuditLogService
     public function logSecurityEvent(
         string $event,
         string $severity = 'medium',
-        string $tenantId = null,
-        string $userId = null,
-        Request $request = null,
+        ?string $tenantId = null,
+        ?string $userId = null,
+        ?Request $request = null,
         array $metadata = []
     ): void {
         $this->logEvent([
@@ -129,8 +131,8 @@ class AuditLogService
      */
     public function logSystemEvent(
         string $event,
-        string $service = null,
-        string $tenantId = null,
+        ?string $service = null,
+        ?string $tenantId = null,
         array $metadata = []
     ): void {
         $this->logEvent([
@@ -201,7 +203,7 @@ class AuditLogService
      */
     private function cacheEvent(array $eventData): void
     {
-        $cacheKey = self::CACHE_PREFIX . $eventData['id'];
+        $cacheKey = self::CACHE_PREFIX.$eventData['id'];
         Cache::put($cacheKey, $eventData, self::CACHE_TTL);
     }
 
@@ -217,10 +219,10 @@ class AuditLogService
         // This would typically query a dedicated audit log database
         // For now, we'll return cached events
         $events = [];
-        
+
         // In a real implementation, you would query your audit log storage
         // This is a placeholder for the structure
-        
+
         return [
             'events' => $events,
             'total' => count($events),
@@ -233,14 +235,14 @@ class AuditLogService
      * Get security events by severity
      */
     public function getSecurityEvents(
-        string $severity = null,
+        ?string $severity = null,
         int $limit = 100,
         int $offset = 0
     ): array {
         // This would typically query a dedicated audit log database
         // For now, we'll return cached events
         $events = [];
-        
+
         return [
             'events' => $events,
             'total' => count($events),
@@ -254,7 +256,8 @@ class AuditLogService
      */
     public function getAuditEvent(string $eventId): ?array
     {
-        $cacheKey = self::CACHE_PREFIX . $eventId;
+        $cacheKey = self::CACHE_PREFIX.$eventId;
+
         return Cache::get($cacheKey);
     }
 
@@ -262,9 +265,9 @@ class AuditLogService
      * Export audit events for compliance
      */
     public function exportAuditEvents(
-        string $tenantId = null,
-        string $startDate = null,
-        string $endDate = null,
+        ?string $tenantId = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
         string $format = 'json'
     ): string {
         // This would generate a compliance-ready export

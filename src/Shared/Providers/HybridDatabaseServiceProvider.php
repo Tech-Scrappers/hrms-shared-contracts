@@ -3,9 +3,9 @@
 namespace Shared\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Shared\Middleware\HybridTenantDatabaseMiddleware;
 use Shared\Services\HybridDatabaseService;
 use Shared\Services\HybridMigrationService;
-use Shared\Middleware\HybridTenantDatabaseMiddleware;
 
 class HybridDatabaseServiceProvider extends ServiceProvider
 {
@@ -16,12 +16,12 @@ class HybridDatabaseServiceProvider extends ServiceProvider
     {
         // Register hybrid database service
         $this->app->singleton(HybridDatabaseService::class, function ($app) {
-            return new HybridDatabaseService();
+            return new HybridDatabaseService;
         });
 
         // Register hybrid migration service
         $this->app->singleton(HybridMigrationService::class, function ($app) {
-            return new HybridMigrationService();
+            return new HybridMigrationService;
         });
 
         // Register hybrid tenant database middleware
@@ -39,7 +39,7 @@ class HybridDatabaseServiceProvider extends ServiceProvider
     {
         // Publish configuration
         $this->publishes([
-            __DIR__ . '/../Config/hybrid-database.php' => config_path('hybrid-database.php'),
+            __DIR__.'/../Config/hybrid-database.php' => config_path('hybrid-database.php'),
         ], 'hybrid-database-config');
 
         // Register middleware alias
@@ -47,7 +47,7 @@ class HybridDatabaseServiceProvider extends ServiceProvider
 
         // Register configuration
         $this->mergeConfigFrom(
-            __DIR__ . '/../Config/hybrid-database.php',
+            __DIR__.'/../Config/hybrid-database.php',
             'hybrid-database'
         );
     }

@@ -18,7 +18,7 @@ trait AuditLogTrait
             'user_agent' => request()->userAgent(),
         ]);
     }
-    
+
     protected function logSecurityEvent(string $event, array $data = []): void
     {
         Log::channel('security')->warning('Security Event', [

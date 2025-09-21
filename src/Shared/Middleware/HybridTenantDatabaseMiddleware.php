@@ -3,12 +3,12 @@
 namespace Shared\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Shared\Services\HybridDatabaseService;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Shared\Services\HybridDatabaseService;
+use Symfony\Component\HttpFoundation\Response;
 
 class HybridTenantDatabaseMiddleware
 {
@@ -21,35 +21,35 @@ class HybridTenantDatabaseMiddleware
         try {
             // Get tenant identifier from headers or request
             $tenantId = $this->getTenantIdentifier($request);
-            
-            if (!$tenantId) {
+
+            if (! $tenantId) {
                 return $this->errorResponse('Tenant identifier is required', 400);
             }
 
             // Validate tenant exists and is active
             $tenant = $this->hybridDatabaseService->getTenant($tenantId);
-            
-            if (!$tenant) {
+
+            if (! $tenant) {
                 return $this->errorResponse('Tenant not found', 404);
             }
 
-            if (!$tenant['is_active']) {
+            if (! $tenant['is_active']) {
                 return $this->errorResponse('Tenant is inactive', 403);
             }
 
             // Get current service
             $currentService = $this->hybridDatabaseService->getCurrentService();
-            
+
             // CRITICAL: Use tenant['id'] instead of tenantId for consistency
             $actualTenantId = $tenant['id'];
-            
+
             // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
             $domain = $tenant['domain'];
             $domainPrefix = explode('.', $domain)[0];
-            
+
             // Check if tenant service database exists using correct naming convention
             $databaseName = "hrms_tenant_{$domainPrefix}";
-            if (!$this->tenantServiceDatabaseExists($databaseName)) {
+            if (! $this->tenantServiceDatabaseExists($databaseName)) {
                 return $this->errorResponse("Tenant {$currentService} database not found", 404);
             }
 
@@ -63,6 +63,7 @@ class HybridTenantDatabaseMiddleware
                     'expected_database' => $databaseName,
                     'actual_connection' => $connectionInfo,
                 ]);
+
                 return $this->errorResponse('Database connection failed', 500);
             }
 
@@ -146,8 +147,9 @@ class HybridTenantDatabaseMiddleware
     private function tenantServiceDatabaseExists(string $databaseName): bool
     {
         try {
-            $result = DB::select("SELECT 1 FROM pg_database WHERE datname = ?", [$databaseName]);
-            return !empty($result);
+            $result = DB::select('SELECT 1 FROM pg_database WHERE datname = ?', [$databaseName]);
+
+            return ! empty($result);
         } catch (Exception $e) {
             return false;
         }

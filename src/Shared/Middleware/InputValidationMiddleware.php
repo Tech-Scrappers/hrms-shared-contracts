@@ -20,7 +20,7 @@ class InputValidationMiddleware
         }
 
         // Validate request size
-        if (!$this->validateRequestSize($request)) {
+        if (! $this->validateRequestSize($request)) {
             return $this->requestTooLargeResponse();
         }
 
@@ -28,7 +28,7 @@ class InputValidationMiddleware
         $this->sanitizeInput($request);
 
         // Validate content type
-        if (!$this->validateContentType($request)) {
+        if (! $this->validateContentType($request)) {
             return $this->unsupportedMediaTypeResponse();
         }
 
@@ -38,9 +38,9 @@ class InputValidationMiddleware
                 'ip' => $request->ip(),
                 'user_agent' => $request->header('User-Agent'),
                 'path' => $request->path(),
-                'method' => $request->method()
+                'method' => $request->method(),
             ]);
-            
+
             return $this->badRequestResponse('Invalid input detected');
         }
 
@@ -54,7 +54,7 @@ class InputValidationMiddleware
     {
         $maxSize = config('app.max_request_size', 10485760); // 10MB default
         $contentLength = $request->header('Content-Length', 0);
-        
+
         return (int) $contentLength <= $maxSize;
     }
 
@@ -65,7 +65,7 @@ class InputValidationMiddleware
     {
         $input = $request->all();
         $sanitized = $this->recursiveSanitize($input);
-        
+
         // Replace request data with sanitized version
         $request->replace($sanitized);
     }
@@ -78,11 +78,11 @@ class InputValidationMiddleware
         if (is_array($data)) {
             return array_map([$this, 'recursiveSanitize'], $data);
         }
-        
+
         if (is_string($data)) {
             return $this->sanitizeString($data);
         }
-        
+
         return $data;
     }
 
@@ -93,13 +93,13 @@ class InputValidationMiddleware
     {
         // Remove null bytes
         $input = str_replace("\0", '', $input);
-        
+
         // Trim whitespace
         $input = trim($input);
-        
+
         // Remove control characters except newlines and tabs
         $input = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $input);
-        
+
         return $input;
     }
 
@@ -116,7 +116,7 @@ class InputValidationMiddleware
         $allowedTypes = [
             'application/json',
             'application/x-www-form-urlencoded',
-            'multipart/form-data'
+            'multipart/form-data',
         ];
 
         foreach ($allowedTypes as $allowedType) {
@@ -134,42 +134,42 @@ class InputValidationMiddleware
     private function containsMaliciousPatterns(Request $request): bool
     {
         $input = json_encode($request->all());
-        
+
         // Skip validation for authentication endpoints with common patterns
         if ($this->isAuthenticationEndpoint($request)) {
             return false;
         }
-        
+
         $maliciousPatterns = [
             // SQL Injection patterns (more specific)
             '/(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\s+.*\bFROM\b)/i',
             '/(\b(OR|AND)\s+\d+\s*=\s*\d+\s*--)/i',
             '/(\b(OR|AND)\s+[\'"]?\w+[\'"]?\s*=\s*[\'"]?\w+[\'"]?\s*--)/i',
-            
+
             // XSS patterns (more specific)
             '/<script[^>]*>.*?<\/script>/i',
             '/javascript:\s*alert/i',
             '/on\w+\s*=\s*[\'"]/i',
             '/<iframe[^>]*>.*?<\/iframe>/i',
-            
+
             // Command injection patterns (more specific)
             '/[;&|`$(){}[\]]\s*cat\s+\//i',
             '/[;&|`$(){}[\]]\s*ls\s+\//i',
             '/[;&|`$(){}[\]]\s*rm\s+-rf/i',
-            
+
             // Path traversal patterns (more specific)
             '/\.\.\/\.\.\//',
             '/\.\.\\\\\.\.\\\\/',
-            
+
             // LDAP injection patterns (more specific)
             '/[()=*!&|]\s*admin/i',
             '/[()=*!&|]\s*user/i',
-            
+
             // NoSQL injection patterns (more specific)
             '/\$where\s*:\s*function/i',
             '/\$ne\s*:\s*null/i',
             '/\$gt\s*:\s*0/i',
-            '/\$lt\s*:\s*0/i'
+            '/\$lt\s*:\s*0/i',
         ];
 
         foreach ($maliciousPatterns as $pattern) {
@@ -191,13 +191,13 @@ class InputValidationMiddleware
             'error' => [
                 'code' => 'REQUEST_TOO_LARGE',
                 'message' => 'Request entity too large',
-                'type' => 'client_error'
+                'type' => 'client_error',
             ],
             'meta' => [
                 'timestamp' => now()->toISOString(),
                 'request_id' => request()->header('X-Request-ID', (string) \Illuminate\Support\Str::uuid()),
-                'max_size' => config('app.max_request_size', 10485760)
-            ]
+                'max_size' => config('app.max_request_size', 10485760),
+            ],
         ], 413);
     }
 
@@ -211,7 +211,7 @@ class InputValidationMiddleware
             'error' => [
                 'code' => 'UNSUPPORTED_MEDIA_TYPE',
                 'message' => 'Unsupported media type',
-                'type' => 'client_error'
+                'type' => 'client_error',
             ],
             'meta' => [
                 'timestamp' => now()->toISOString(),
@@ -219,9 +219,9 @@ class InputValidationMiddleware
                 'supported_types' => [
                     'application/json',
                     'application/x-www-form-urlencoded',
-                    'multipart/form-data'
-                ]
-            ]
+                    'multipart/form-data',
+                ],
+            ],
         ], 415);
     }
 
@@ -235,12 +235,12 @@ class InputValidationMiddleware
             'error' => [
                 'code' => 'BAD_REQUEST',
                 'message' => $message,
-                'type' => 'client_error'
+                'type' => 'client_error',
             ],
             'meta' => [
                 'timestamp' => now()->toISOString(),
-                'request_id' => request()->header('X-Request-ID', (string) \Illuminate\Support\Str::uuid())
-            ]
+                'request_id' => request()->header('X-Request-ID', (string) \Illuminate\Support\Str::uuid()),
+            ],
         ], 400);
     }
 
@@ -251,13 +251,13 @@ class InputValidationMiddleware
     {
         $path = $request->path();
         $healthPaths = ['health', 'up', 'ready', 'live'];
-        
+
         foreach ($healthPaths as $healthPath) {
             if (str_contains($path, $healthPath)) {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -268,13 +268,13 @@ class InputValidationMiddleware
     {
         $path = $request->path();
         $authPaths = ['auth', 'login', 'register', 'oauth', 'api-key'];
-        
+
         foreach ($authPaths as $authPath) {
             if (str_contains($path, $authPath)) {
                 return true;
             }
         }
-        
+
         return false;
     }
 }

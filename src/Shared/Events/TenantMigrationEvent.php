@@ -13,12 +13,12 @@ class TenantMigrationEvent implements EventInterface
     ) {
         $this->tenantId = $tenantId ?? $tenant['id'] ?? null;
     }
-    
+
     public function getEventName(): string
     {
         return 'tenant.migration.required';
     }
-    
+
     public function getPayload(): array
     {
         return [
@@ -27,12 +27,12 @@ class TenantMigrationEvent implements EventInterface
             'tenant_id' => $this->tenantId,
         ];
     }
-    
+
     public function getTenantId(): ?string
     {
         return $this->tenantId;
     }
-    
+
     public function getService(): string
     {
         return $this->service;

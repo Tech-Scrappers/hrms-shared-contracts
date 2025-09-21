@@ -2,15 +2,16 @@
 
 namespace Shared\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
-use Shared\Events\EventBus;
-use Shared\Events\EmployeeCreatedEvent;
-use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
+use PHPUnit\Framework\TestCase;
+use Shared\Events\EmployeeCreatedEvent;
+use Shared\Events\EventBus;
 
 class EventBusTest extends TestCase
 {
     private EventBus $eventBus;
+
     private string $serviceName = 'test-service';
 
     protected function setUp(): void
@@ -42,7 +43,7 @@ class EventBusTest extends TestCase
         $event = new EmployeeCreatedEvent([
             'id' => 'test-employee-id',
             'name' => 'Test Employee',
-            'tenant_id' => 'test-tenant-id'
+            'tenant_id' => 'test-tenant-id',
         ]);
 
         $this->eventBus->publish($event);
@@ -86,7 +87,7 @@ class EventBusTest extends TestCase
     {
         $mockEvents = [
             json_encode(['event_name' => 'employee.created', 'payload' => ['id' => '1']]),
-            json_encode(['event_name' => 'employee.updated', 'payload' => ['id' => '2']])
+            json_encode(['event_name' => 'employee.updated', 'payload' => ['id' => '2']]),
         ];
 
         Redis::shouldReceive('lrange')
@@ -105,7 +106,7 @@ class EventBusTest extends TestCase
     {
         $mockEvents = [
             ['event_name' => 'employee.created', 'metadata' => ['service' => 'test-service']],
-            ['event_name' => 'employee.updated', 'metadata' => ['service' => 'other-service']]
+            ['event_name' => 'employee.updated', 'metadata' => ['service' => 'other-service']],
         ];
 
         Redis::shouldReceive('lrange')
@@ -155,6 +156,7 @@ class EventBusTest extends TestCase
             ->once()
             ->with('hrms_events', \Mockery::on(function ($json) {
                 $data = json_decode($json, true);
+
                 return $data['metadata']['service'] === 'test-service' &&
                        isset($data['metadata']['timestamp']) &&
                        isset($data['metadata']['event_id']);

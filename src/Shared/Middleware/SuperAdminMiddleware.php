@@ -6,47 +6,42 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
-use Laravel\Passport\Token;
 
 class SuperAdminMiddleware
 {
     /**
      * Handle an incoming request.
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @return Response|\Illuminate\Http\JsonResponse
      */
     public function handle(Request $request, Closure $next): Response|\Illuminate\Http\JsonResponse
     {
         try {
             // Get the authenticated user
             $user = $request->user();
-            
-            if (!$user) {
+
+            if (! $user) {
                 Log::warning('SuperAdminMiddleware: No authenticated user found', [
                     'request_uri' => $request->getRequestUri(),
                     'method' => $request->method(),
                 ]);
-                
+
                 return $this->unauthorizedResponse('Authentication required');
             }
 
             // Check if user is super admin
-            if (!$user->isSuperAdmin()) {
+            if (! $user->isSuperAdmin()) {
                 Log::warning('SuperAdminMiddleware: Access denied - user is not super admin', [
                     'user_id' => $user->id,
                     'user_role' => $user->role,
                     'request_uri' => $request->getRequestUri(),
                     'method' => $request->method(),
                 ]);
-                
+
                 return $this->forbiddenResponse('Super admin access required');
             }
 
             // Check if user has tenant-admin scope
             $token = $request->user()->token();
-            if (!$token || !in_array('tenant-admin', $token->scopes ?? [])) {
+            if (! $token || ! in_array('tenant-admin', $token->scopes ?? [])) {
                 Log::warning('SuperAdminMiddleware: Access denied - missing tenant-admin scope', [
                     'user_id' => $user->id,
                     'user_role' => $user->role,
@@ -54,7 +49,7 @@ class SuperAdminMiddleware
                     'request_uri' => $request->getRequestUri(),
                     'method' => $request->method(),
                 ]);
-                
+
                 return $this->forbiddenResponse('Tenant admin scope required');
             }
 

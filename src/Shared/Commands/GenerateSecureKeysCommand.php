@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 class GenerateSecureKeysCommand extends Command
 {
     protected $signature = 'security:generate-keys {--output= : Output file for keys}';
+
     protected $description = 'Generate secure keys for the HRMS system';
 
     public function handle(): int
@@ -16,15 +17,15 @@ class GenerateSecureKeysCommand extends Command
         $this->info('Generating secure keys for HRMS system...');
 
         $keys = [
-            'APP_KEY' => 'base64:' . base64_encode(random_bytes(32)),
+            'APP_KEY' => 'base64:'.base64_encode(random_bytes(32)),
             'JWT_SECRET' => Str::random(64),
             'ENCRYPTION_KEY' => base64_encode(random_bytes(32)),
             'DB_PASSWORD' => Str::random(32),
             'REDIS_PASSWORD' => Str::random(32),
             'KONG_PG_PASSWORD' => Str::random(32),
-            'IDENTITY_API_KEY' => 'hrms_' . Str::random(60),
-            'EMPLOYEE_API_KEY' => 'hrms_' . Str::random(60),
-            'ATTENDANCE_API_KEY' => 'hrms_' . Str::random(60),
+            'IDENTITY_API_KEY' => 'hrms_'.Str::random(60),
+            'EMPLOYEE_API_KEY' => 'hrms_'.Str::random(60),
+            'ATTENDANCE_API_KEY' => 'hrms_'.Str::random(60),
             'SMTP_PASSWORD' => Str::random(32),
         ];
 
@@ -35,6 +36,7 @@ class GenerateSecureKeysCommand extends Command
         }
 
         $this->info('Secure keys generated successfully!');
+
         return 0;
     }
 
@@ -54,7 +56,7 @@ class GenerateSecureKeysCommand extends Command
 
     private function writeKeysToFile(array $keys, string $outputFile): void
     {
-        $content = "# HRMS Secure Keys - Generated on " . now()->toISOString() . "\n";
+        $content = '# HRMS Secure Keys - Generated on '.now()->toISOString()."\n";
         $content .= "# DO NOT COMMIT THIS FILE TO VERSION CONTROL!\n\n";
 
         foreach ($keys as $key => $value) {

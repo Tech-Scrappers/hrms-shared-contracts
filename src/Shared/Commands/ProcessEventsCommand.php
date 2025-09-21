@@ -3,8 +3,8 @@
 namespace Shared\Commands;
 
 use Illuminate\Console\Command;
-use Shared\Events\EventSubscriber;
 use Illuminate\Support\Facades\Log;
+use Shared\Events\EventSubscriber;
 
 class ProcessEventsCommand extends Command
 {
@@ -29,32 +29,32 @@ class ProcessEventsCommand extends Command
     {
         $serviceName = $this->option('service') ?: env('SERVICE_NAME', 'default');
         $timeout = (int) $this->option('timeout');
-        
+
         $this->info("Starting event processing for service: {$serviceName}");
-        
+
         try {
             $eventSubscriber = app(EventSubscriber::class);
-            
+
             // Set up signal handlers for graceful shutdown
             if (function_exists('pcntl_signal')) {
                 pcntl_signal(SIGTERM, [$this, 'handleShutdown']);
                 pcntl_signal(SIGINT, [$this, 'handleShutdown']);
             }
-            
+
             $startTime = time();
-            
+
             while (true) {
                 // Check for timeout
                 if (time() - $startTime > $timeout) {
                     $this->info('Event processing timeout reached, stopping...');
                     break;
                 }
-                
+
                 // Process signals
                 if (function_exists('pcntl_signal_dispatch')) {
                     pcntl_signal_dispatch();
                 }
-                
+
                 try {
                     // Start listening for events (this is blocking)
                     $eventSubscriber->startListening();
@@ -64,29 +64,31 @@ class ProcessEventsCommand extends Command
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString(),
                     ]);
-                    
+
                     $this->error("Error processing events: {$e->getMessage()}");
-                    
+
                     // Wait a bit before retrying
                     sleep(5);
                 }
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Fatal error in event processing command', [
                 'service' => $serviceName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             $this->error("Fatal error: {$e->getMessage()}");
+
             return 1;
         }
-        
+
         $this->info('Event processing stopped');
+
         return 0;
     }
-    
+
     /**
      * Handle shutdown signals
      */

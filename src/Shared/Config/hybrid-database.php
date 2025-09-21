@@ -58,11 +58,11 @@ return [
                 'branches',
             ],
         ],
-        'attendance' => [
-            'name' => 'Attendance Service',
-            'database_prefix' => 'attendance',
-            'migration_path' => 'database/migrations/attendance',
-            'seeder_class' => 'AttendanceServiceSeeder',
+        'core' => [
+            'name' => 'Core Service',
+            'database_prefix' => 'core',
+            'migration_path' => 'database/migrations/core',
+            'seeder_class' => 'CoreServiceSeeder',
             'tables' => [
                 'attendance_records',
                 'leave_requests',

@@ -2,22 +2,19 @@
 
 namespace Shared\Services;
 
+use Exception;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Http\Request;
-use Exception;
 
 class SecurityAuditService
 {
     private const AUDIT_CACHE_PREFIX = 'security_audit_';
+
     private const AUDIT_CACHE_TTL = 300; // 5 minutes
 
     /**
      * Perform comprehensive security audit
-     *
-     * @return array
      */
     public function performSecurityAudit(): array
     {
@@ -30,7 +27,7 @@ class SecurityAuditService
             'warnings' => 0,
             'critical_issues' => [],
             'recommendations' => [],
-            'checks' => []
+            'checks' => [],
         ];
 
         // Run all security checks
@@ -186,16 +183,16 @@ class SecurityAuditService
 
             foreach ($tenantDatabases as $db) {
                 $dbName = $db->datname;
-                
+
                 // Check if database has proper naming convention
-                if (!preg_match('/^tenant_[a-f0-9-]+_(identity|employee|attendance)$/', $dbName)) {
+                if (! preg_match('/^tenant_[a-f0-9-]+_(identity|employee|attendance)$/', $dbName)) {
                     $issues[] = "Invalid database naming convention: {$dbName}";
                     continue;
                 }
 
                 // Check if database has proper permissions
                 $permissions = DB::connection('pgsql')
-                    ->select("SELECT * FROM pg_database WHERE datname = ?", [$dbName]);
+                    ->select('SELECT * FROM pg_database WHERE datname = ?', [$dbName]);
 
                 if (empty($permissions)) {
                     $issues[] = "Database not found: {$dbName}";
@@ -215,16 +212,16 @@ class SecurityAuditService
                 'recommendations' => $score < 80 ? [
                     'Ensure all tenant databases follow naming convention',
                     'Verify database permissions are properly configured',
-                    'Implement database access controls'
-                ] : []
+                    'Implement database access controls',
+                ] : [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check tenant database isolation: ' . $e->getMessage(),
+                'message' => 'Failed to check tenant database isolation: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix database connection issues']
+                'recommendations' => ['Fix database connection issues'],
             ];
         }
     }
@@ -247,7 +244,7 @@ class SecurityAuditService
                     'score' => 50,
                     'message' => 'No active tenants found',
                     'issues' => ['No tenants to check data separation'],
-                    'recommendations' => ['Create test tenants to verify data separation']
+                    'recommendations' => ['Create test tenants to verify data separation'],
                 ];
             }
 
@@ -267,9 +264,9 @@ class SecurityAuditService
                 foreach ($services as $service) {
                     $dbName = "tenant_{$tenant->id}_{$service}";
                     $exists = DB::connection('pgsql')
-                        ->select("SELECT 1 FROM pg_database WHERE datname = ?", [$dbName]);
+                        ->select('SELECT 1 FROM pg_database WHERE datname = ?', [$dbName]);
 
-                    if (!empty($exists)) {
+                    if (! empty($exists)) {
                         $tenantServiceDbs++;
                     }
                 }
@@ -291,16 +288,16 @@ class SecurityAuditService
                 'recommendations' => $score < 80 ? [
                     'Ensure all tenants have complete service databases',
                     'Verify tenant data isolation in each service',
-                    'Implement tenant data validation'
-                ] : []
+                    'Implement tenant data validation',
+                ] : [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check tenant data separation: ' . $e->getMessage(),
+                'message' => 'Failed to check tenant data separation: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix database connection issues']
+                'recommendations' => ['Fix database connection issues'],
             ];
         }
     }
@@ -314,14 +311,14 @@ class SecurityAuditService
             // This would require actual testing of cross-tenant access
             // For now, we'll check if the middleware is properly configured
             $middlewareExists = class_exists('Shared\Middleware\UnifiedAuthenticationMiddleware');
-            
-            if (!$middlewareExists) {
+
+            if (! $middlewareExists) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Cross-tenant access prevention middleware not found',
                     'issues' => ['UnifiedAuthenticationMiddleware not available'],
-                    'recommendations' => ['Implement cross-tenant access prevention middleware']
+                    'recommendations' => ['Implement cross-tenant access prevention middleware'],
                 ];
             }
 
@@ -329,13 +326,13 @@ class SecurityAuditService
             $reflection = new \ReflectionClass('Shared\Middleware\UnifiedAuthenticationMiddleware');
             $hasTenantValidation = $reflection->hasMethod('validateTenantContext');
 
-            if (!$hasTenantValidation) {
+            if (! $hasTenantValidation) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Tenant validation not implemented in middleware',
                     'issues' => ['validateTenantContext method not found'],
-                    'recommendations' => ['Implement tenant validation in authentication middleware']
+                    'recommendations' => ['Implement tenant validation in authentication middleware'],
                 ];
             }
 
@@ -344,15 +341,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'Cross-tenant access prevention is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check cross-tenant access prevention: ' . $e->getMessage(),
+                'message' => 'Failed to check cross-tenant access prevention: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix middleware configuration issues']
+                'recommendations' => ['Fix middleware configuration issues'],
             ];
         }
     }
@@ -365,14 +362,14 @@ class SecurityAuditService
         try {
             // Check if OAuth2 tokens include tenant information
             $hasTenantAwareRepo = class_exists('App\Services\TenantAwareAccessTokenRepository');
-            
-            if (!$hasTenantAwareRepo) {
+
+            if (! $hasTenantAwareRepo) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Tenant-aware OAuth2 implementation not found',
                     'issues' => ['TenantAwareAccessTokenRepository not available'],
-                    'recommendations' => ['Implement tenant-aware OAuth2 token handling']
+                    'recommendations' => ['Implement tenant-aware OAuth2 token handling'],
                 ];
             }
 
@@ -380,13 +377,13 @@ class SecurityAuditService
             $middlewareReflection = new \ReflectionClass('Shared\Middleware\UnifiedAuthenticationMiddleware');
             $hasOAuth2TenantValidation = $middlewareReflection->hasMethod('validateTenantContext');
 
-            if (!$hasOAuth2TenantValidation) {
+            if (! $hasOAuth2TenantValidation) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'OAuth2 tenant validation not implemented',
                     'issues' => ['OAuth2 tenant validation method not found'],
-                    'recommendations' => ['Implement OAuth2 tenant validation']
+                    'recommendations' => ['Implement OAuth2 tenant validation'],
                 ];
             }
 
@@ -395,15 +392,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'OAuth2 tenant validation is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check OAuth2 tenant validation: ' . $e->getMessage(),
+                'message' => 'Failed to check OAuth2 tenant validation: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix OAuth2 configuration issues']
+                'recommendations' => ['Fix OAuth2 configuration issues'],
             ];
         }
     }
@@ -416,14 +413,14 @@ class SecurityAuditService
         try {
             // Check if API keys are properly bound to tenants
             $apiKeyService = app('Shared\Services\ApiKeyService');
-            
-            if (!$apiKeyService) {
+
+            if (! $apiKeyService) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'API key service not available',
                     'issues' => ['ApiKeyService not registered'],
-                    'recommendations' => ['Register ApiKeyService in service container']
+                    'recommendations' => ['Register ApiKeyService in service container'],
                 ];
             }
 
@@ -431,13 +428,13 @@ class SecurityAuditService
             $reflection = new \ReflectionClass($apiKeyService);
             $hasTenantValidation = $reflection->hasMethod('validateApiKey');
 
-            if (!$hasTenantValidation) {
+            if (! $hasTenantValidation) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'API key tenant validation not implemented',
                     'issues' => ['validateApiKey method not found'],
-                    'recommendations' => ['Implement API key tenant validation']
+                    'recommendations' => ['Implement API key tenant validation'],
                 ];
             }
 
@@ -446,15 +443,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'API key tenant binding is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check API key tenant binding: ' . $e->getMessage(),
+                'message' => 'Failed to check API key tenant binding: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix API key service configuration']
+                'recommendations' => ['Fix API key service configuration'],
             ];
         }
     }
@@ -467,14 +464,14 @@ class SecurityAuditService
         try {
             // Check if password hashing is properly configured
             $hashDriver = config('hashing.driver', 'bcrypt');
-            
+
             if ($hashDriver !== 'bcrypt' && $hashDriver !== 'argon2id') {
                 return [
                     'status' => 'warning',
                     'score' => 60,
                     'message' => 'Password hashing uses less secure algorithm',
                     'issues' => ["Using {$hashDriver} instead of bcrypt or argon2id"],
-                    'recommendations' => ['Use bcrypt or argon2id for password hashing']
+                    'recommendations' => ['Use bcrypt or argon2id for password hashing'],
                 ];
             }
 
@@ -486,7 +483,7 @@ class SecurityAuditService
                     'score' => 70,
                     'message' => 'Password minimum length is too short',
                     'issues' => ["Minimum length is {$minLength}, should be at least 12"],
-                    'recommendations' => ['Increase password minimum length to 12 characters']
+                    'recommendations' => ['Increase password minimum length to 12 characters'],
                 ];
             }
 
@@ -495,15 +492,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'Password security is properly configured',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check password security: ' . $e->getMessage(),
+                'message' => 'Failed to check password security: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix password configuration issues']
+                'recommendations' => ['Fix password configuration issues'],
             ];
         }
     }
@@ -516,17 +513,17 @@ class SecurityAuditService
         try {
             // Check if parameterized queries are used
             $hasParameterizedQueries = true; // This would require code analysis
-            
+
             // Check if input validation is in place
             $hasInputValidation = class_exists('Shared\Middleware\InputValidationMiddleware');
-            
-            if (!$hasInputValidation) {
+
+            if (! $hasInputValidation) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Input validation middleware not found',
                     'issues' => ['InputValidationMiddleware not available'],
-                    'recommendations' => ['Implement input validation middleware']
+                    'recommendations' => ['Implement input validation middleware'],
                 ];
             }
 
@@ -535,15 +532,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'SQL injection protection is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check SQL injection protection: ' . $e->getMessage(),
+                'message' => 'Failed to check SQL injection protection: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix database security configuration']
+                'recommendations' => ['Fix database security configuration'],
             ];
         }
     }
@@ -574,15 +571,15 @@ class SecurityAuditService
                 'score' => $score,
                 'message' => $score >= 80 ? 'Database SSL is properly enforced' : 'Database SSL enforcement needs improvement',
                 'issues' => $score < 80 ? ['Some database connections do not enforce SSL'] : [],
-                'recommendations' => $score < 80 ? ['Set sslmode=require for all database connections'] : []
+                'recommendations' => $score < 80 ? ['Set sslmode=require for all database connections'] : [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check database SSL enforcement: ' . $e->getMessage(),
+                'message' => 'Failed to check database SSL enforcement: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix database configuration issues']
+                'recommendations' => ['Fix database configuration issues'],
             ];
         }
     }
@@ -594,14 +591,14 @@ class SecurityAuditService
     {
         try {
             $hasRateLimitMiddleware = class_exists('Shared\Middleware\EnhancedRateLimitMiddleware');
-            
-            if (!$hasRateLimitMiddleware) {
+
+            if (! $hasRateLimitMiddleware) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Rate limiting middleware not found',
                     'issues' => ['EnhancedRateLimitMiddleware not available'],
-                    'recommendations' => ['Implement rate limiting middleware']
+                    'recommendations' => ['Implement rate limiting middleware'],
                 ];
             }
 
@@ -610,15 +607,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'Rate limiting is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check rate limiting: ' . $e->getMessage(),
+                'message' => 'Failed to check rate limiting: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix rate limiting configuration']
+                'recommendations' => ['Fix rate limiting configuration'],
             ];
         }
     }
@@ -630,14 +627,14 @@ class SecurityAuditService
     {
         try {
             $corsOrigins = config('cors.allowed_origins', []);
-            
+
             if (empty($corsOrigins)) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'CORS origins not configured',
                     'issues' => ['No CORS origins configured'],
-                    'recommendations' => ['Configure specific CORS origins']
+                    'recommendations' => ['Configure specific CORS origins'],
                 ];
             }
 
@@ -648,7 +645,7 @@ class SecurityAuditService
                     'score' => 60,
                     'message' => 'CORS allows all origins',
                     'issues' => ['Wildcard (*) CORS origin is not secure'],
-                    'recommendations' => ['Use specific CORS origins instead of wildcard']
+                    'recommendations' => ['Use specific CORS origins instead of wildcard'],
                 ];
             }
 
@@ -657,15 +654,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'CORS is properly configured',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check CORS configuration: ' . $e->getMessage(),
+                'message' => 'Failed to check CORS configuration: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix CORS configuration issues']
+                'recommendations' => ['Fix CORS configuration issues'],
             ];
         }
     }
@@ -678,17 +675,17 @@ class SecurityAuditService
         try {
             $hasInputValidation = class_exists('Shared\Middleware\InputValidationMiddleware');
             $hasValidationHelper = class_exists('Shared\Helpers\ValidationHelper');
-            
-            if (!$hasInputValidation || !$hasValidationHelper) {
+
+            if (! $hasInputValidation || ! $hasValidationHelper) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Input validation not fully implemented',
                     'issues' => [
                         $hasInputValidation ? '' : 'InputValidationMiddleware not available',
-                        $hasValidationHelper ? '' : 'ValidationHelper not available'
+                        $hasValidationHelper ? '' : 'ValidationHelper not available',
                     ],
-                    'recommendations' => ['Implement comprehensive input validation']
+                    'recommendations' => ['Implement comprehensive input validation'],
                 ];
             }
 
@@ -697,15 +694,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'Input validation is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check input validation: ' . $e->getMessage(),
+                'message' => 'Failed to check input validation: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix input validation configuration']
+                'recommendations' => ['Fix input validation configuration'],
             ];
         }
     }
@@ -717,14 +714,14 @@ class SecurityAuditService
     {
         try {
             $hasCsrfMiddleware = class_exists('Shared\Middleware\CsrfProtectionMiddleware');
-            
-            if (!$hasCsrfMiddleware) {
+
+            if (! $hasCsrfMiddleware) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'CSRF protection middleware not found',
                     'issues' => ['CsrfProtectionMiddleware not available'],
-                    'recommendations' => ['Implement CSRF protection middleware']
+                    'recommendations' => ['Implement CSRF protection middleware'],
                 ];
             }
 
@@ -733,15 +730,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'CSRF protection is implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check CSRF protection: ' . $e->getMessage(),
+                'message' => 'Failed to check CSRF protection: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix CSRF protection configuration']
+                'recommendations' => ['Fix CSRF protection configuration'],
             ];
         }
     }
@@ -753,14 +750,14 @@ class SecurityAuditService
     {
         try {
             $hasSecurityHeaders = class_exists('Shared\Middleware\SecurityHeadersMiddleware');
-            
-            if (!$hasSecurityHeaders) {
+
+            if (! $hasSecurityHeaders) {
                 return [
                     'status' => 'fail',
                     'score' => 0,
                     'message' => 'Security headers middleware not found',
                     'issues' => ['SecurityHeadersMiddleware not available'],
-                    'recommendations' => ['Implement security headers middleware']
+                    'recommendations' => ['Implement security headers middleware'],
                 ];
             }
 
@@ -769,15 +766,15 @@ class SecurityAuditService
                 'score' => 100,
                 'message' => 'Security headers are implemented',
                 'issues' => [],
-                'recommendations' => []
+                'recommendations' => [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check security headers: ' . $e->getMessage(),
+                'message' => 'Failed to check security headers: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix security headers configuration']
+                'recommendations' => ['Fix security headers configuration'],
             ];
         }
     }
@@ -790,7 +787,7 @@ class SecurityAuditService
         try {
             $appEnv = config('app.env', 'production');
             $appDebug = config('app.debug', false);
-            
+
             $issues = [];
             $score = 100;
 
@@ -811,16 +808,16 @@ class SecurityAuditService
                 'issues' => $issues,
                 'recommendations' => $score < 80 ? [
                     'Set APP_ENV=production',
-                    'Set APP_DEBUG=false'
-                ] : []
+                    'Set APP_DEBUG=false',
+                ] : [],
             ];
         } catch (Exception $e) {
             return [
                 'status' => 'fail',
                 'score' => 0,
-                'message' => 'Failed to check environment security: ' . $e->getMessage(),
+                'message' => 'Failed to check environment security: '.$e->getMessage(),
                 'issues' => [$e->getMessage()],
-                'recommendations' => ['Fix environment configuration']
+                'recommendations' => ['Fix environment configuration'],
             ];
         }
     }
@@ -831,7 +828,7 @@ class SecurityAuditService
     private function addCheckResult(array &$auditResults, string $checkName, array $result): void
     {
         $auditResults['total_checks']++;
-        
+
         if ($result['status'] === 'pass') {
             $auditResults['passed_checks']++;
         } elseif ($result['status'] === 'warning') {
@@ -844,9 +841,9 @@ class SecurityAuditService
         }
 
         $auditResults['checks'][$checkName] = $result;
-        
+
         // Add recommendations
-        if (!empty($result['recommendations'])) {
+        if (! empty($result['recommendations'])) {
             $auditResults['recommendations'] = array_merge(
                 $auditResults['recommendations'],
                 $result['recommendations']
@@ -910,11 +907,11 @@ class SecurityAuditService
      */
     public function getSecuritySummary(): array
     {
-        $cacheKey = self::AUDIT_CACHE_PREFIX . 'summary';
-        
+        $cacheKey = self::AUDIT_CACHE_PREFIX.'summary';
+
         return Cache::remember($cacheKey, self::AUDIT_CACHE_TTL, function () {
             $audit = $this->performSecurityAudit();
-            
+
             return [
                 'overall_score' => $audit['overall_score'],
                 'status' => $audit['status'],

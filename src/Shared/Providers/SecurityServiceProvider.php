@@ -2,14 +2,14 @@
 
 namespace Shared\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
 use Shared\Middleware\CsrfProtectionMiddleware;
 use Shared\Middleware\EnhancedRateLimitMiddleware;
-use Shared\Middleware\SecurityHeadersMiddleware;
 use Shared\Middleware\InputValidationMiddleware;
 use Shared\Middleware\JsonResponseMiddleware;
 use Shared\Middleware\PayloadSizeLimitMiddleware;
+use Shared\Middleware\SecurityHeadersMiddleware;
 use Shared\Services\AuditLogService;
 
 class SecurityServiceProvider extends ServiceProvider
@@ -24,7 +24,7 @@ class SecurityServiceProvider extends ServiceProvider
 
         // Register audit log service as singleton
         $this->app->singleton(AuditLogService::class, function ($app) {
-            return new AuditLogService();
+            return new AuditLogService;
         });
     }
 
@@ -108,6 +108,7 @@ class SecurityServiceProvider extends ServiceProvider
             // Rate limit status
             Route::get('/rate-limit-status', function () {
                 $identifier = request()->header('HRMS-Client-Secret') ?: request()->ip();
+
                 return response()->json(EnhancedRateLimitMiddleware::getRateLimitStatus($identifier));
             });
 

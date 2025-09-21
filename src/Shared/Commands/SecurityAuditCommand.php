@@ -74,7 +74,7 @@ class SecurityAuditCommand extends Command
         );
 
         // Critical issues
-        if (!empty($auditResults['critical_issues'])) {
+        if (! empty($auditResults['critical_issues'])) {
             $this->newLine();
             $this->error('🚨 Critical Issues:');
             foreach ($auditResults['critical_issues'] as $issue) {
@@ -88,7 +88,7 @@ class SecurityAuditCommand extends Command
         }
 
         // Recommendations
-        if (!empty($auditResults['recommendations'])) {
+        if (! empty($auditResults['recommendations'])) {
             $this->newLine();
             $this->warn('💡 Recommendations:');
             foreach (array_unique($auditResults['recommendations']) as $recommendation) {
@@ -108,16 +108,16 @@ class SecurityAuditCommand extends Command
         foreach ($auditResults['checks'] as $checkName => $result) {
             $statusIcon = $this->getStatusIcon($result['status']);
             $statusColor = $this->getStatusColor($result['status']);
-            
+
             $this->line("{$statusIcon} <{$statusColor}>{$checkName}</{$statusColor}> ({$result['score']}%)");
             $this->line("   {$result['message']}");
-            
-            if (!empty($result['issues'])) {
+
+            if (! empty($result['issues'])) {
                 foreach ($result['issues'] as $issue) {
                     $this->line("   ⚠️  {$issue}");
                 }
             }
-            
+
             $this->newLine();
         }
     }
@@ -128,7 +128,7 @@ class SecurityAuditCommand extends Command
     private function exportResults(array $auditResults): void
     {
         $format = $this->option('export');
-        $filename = 'security_audit_' . date('Y-m-d_H-i-s') . '.' . $format;
+        $filename = 'security_audit_'.date('Y-m-d_H-i-s').'.'.$format;
 
         switch ($format) {
             case 'json':
@@ -139,6 +139,7 @@ class SecurityAuditCommand extends Command
                 break;
             default:
                 $this->error("Unsupported export format: {$format}");
+
                 return;
         }
 
@@ -151,10 +152,10 @@ class SecurityAuditCommand extends Command
     private function exportToCsv(array $auditResults, string $filename): void
     {
         $file = fopen($filename, 'w');
-        
+
         // Header
         fputcsv($file, ['Check Name', 'Status', 'Score', 'Message', 'Issues', 'Recommendations']);
-        
+
         // Data
         foreach ($auditResults['checks'] as $checkName => $result) {
             fputcsv($file, [
@@ -163,10 +164,10 @@ class SecurityAuditCommand extends Command
                 $result['score'],
                 $result['message'],
                 implode('; ', $result['issues']),
-                implode('; ', $result['recommendations'])
+                implode('; ', $result['recommendations']),
             ]);
         }
-        
+
         fclose($file);
     }
 
@@ -188,7 +189,7 @@ class SecurityAuditCommand extends Command
             }
         }
 
-        $this->info("Fixed {$fixedCount} out of " . count($auditResults['critical_issues']) . " critical issues.");
+        $this->info("Fixed {$fixedCount} out of ".count($auditResults['critical_issues']).' critical issues.');
     }
 
     /**
@@ -206,7 +207,7 @@ class SecurityAuditCommand extends Command
      */
     private function getStatusColor(string $status): string
     {
-        return match($status) {
+        return match ($status) {
             'excellent' => 'green',
             'good' => 'green',
             'fair' => 'yellow',
@@ -224,7 +225,7 @@ class SecurityAuditCommand extends Command
      */
     private function getStatusIcon(string $status): string
     {
-        return match($status) {
+        return match ($status) {
             'pass' => '✅',
             'warning' => '⚠️',
             'fail' => '❌',

@@ -25,7 +25,7 @@ class ErrorResponseHelper
             'timestamp' => now()->toISOString(),
         ];
 
-        if (!empty($meta)) {
+        if (! empty($meta)) {
             $response['meta'] = $meta;
         }
 
@@ -39,7 +39,7 @@ class ErrorResponseHelper
         string $message = 'An error occurred',
         mixed $data = null,
         int $statusCode = 400,
-        string $errorCode = null,
+        ?string $errorCode = null,
         array $errors = []
     ): JsonResponse {
         $response = [
@@ -56,7 +56,7 @@ class ErrorResponseHelper
             $response['error_code'] = $errorCode;
         }
 
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             $response['errors'] = $errors;
         }
 
@@ -122,7 +122,7 @@ class ErrorResponseHelper
      */
     public static function serverError(
         string $message = 'Internal server error',
-        Request $request = null
+        ?Request $request = null
     ): JsonResponse {
         // Log server errors for debugging
         if ($request) {
@@ -220,7 +220,7 @@ class ErrorResponseHelper
      */
     public static function handleException(
         \Throwable $exception,
-        Request $request = null
+        ?Request $request = null
     ): JsonResponse {
         // Log the exception
         Log::error('Exception occurred', [

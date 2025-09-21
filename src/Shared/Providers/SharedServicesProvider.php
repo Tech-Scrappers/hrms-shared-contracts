@@ -4,9 +4,8 @@ namespace Shared\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Shared\Services\ApiKeyService;
-use Shared\Services\TenantDatabaseService;
 use Shared\Services\HybridDatabaseService;
-use Shared\Providers\CommandServiceProvider;
+use Shared\Services\TenantDatabaseService;
 
 class SharedServicesProvider extends ServiceProvider
 {
@@ -17,7 +16,7 @@ class SharedServicesProvider extends ServiceProvider
     {
         // Register ApiKeyService
         $this->app->singleton(ApiKeyService::class, function ($app) {
-            return new ApiKeyService();
+            return new ApiKeyService;
         });
 
         // Register TenantDatabaseService
@@ -28,9 +27,9 @@ class SharedServicesProvider extends ServiceProvider
         });
 
         // Register HybridDatabaseService if not already registered
-        if (!$this->app->bound(HybridDatabaseService::class)) {
+        if (! $this->app->bound(HybridDatabaseService::class)) {
             $this->app->singleton(HybridDatabaseService::class, function ($app) {
-                return new HybridDatabaseService();
+                return new HybridDatabaseService;
             });
         }
     }

@@ -12,8 +12,8 @@ trait EnterpriseApiResponseTrait
      * Generate a standardized success response following enterprise standards
      */
     protected function successResponse(
-        $data = null, 
-        string $message = 'Success', 
+        $data = null,
+        string $message = 'Success',
         int $statusCode = 200,
         array $meta = []
     ): JsonResponse {
@@ -26,7 +26,7 @@ trait EnterpriseApiResponseTrait
                 'request_id' => $this->getRequestId(),
                 'version' => 'v1',
                 'execution_time_ms' => $this->getExecutionTime(),
-            ], $meta)
+            ], $meta),
         ];
 
         // Add pagination meta if present
@@ -46,9 +46,9 @@ trait EnterpriseApiResponseTrait
      * Generate a standardized created response (201)
      */
     protected function createdResponse(
-        $data = null, 
+        $data = null,
         string $message = 'Resource created successfully',
-        string $location = null
+        ?string $location = null
     ): JsonResponse {
         $meta = [
             'timestamp' => now()->toISOString(),
@@ -65,7 +65,7 @@ trait EnterpriseApiResponseTrait
             'status' => 201,
             'message' => $message,
             'data' => $data,
-            'meta' => $meta
+            'meta' => $meta,
         ], 201);
     }
 
@@ -83,7 +83,7 @@ trait EnterpriseApiResponseTrait
     protected function errorResponse(
         string $message,
         int $statusCode = 400,
-        string $errorCode = null,
+        ?string $errorCode = null,
         string $errorType = 'client_error',
         array $details = [],
         array $meta = []
@@ -99,18 +99,18 @@ trait EnterpriseApiResponseTrait
                 'timestamp' => now()->toISOString(),
                 'request_id' => $this->getRequestId(),
                 'version' => 'v1',
-            ], $meta)
+            ], $meta),
         ];
 
         // Add error details if provided
-        if (!empty($details)) {
+        if (! empty($details)) {
             $response['error']['details'] = $details;
         }
 
         // Add specific error information based on status code
         switch ($statusCode) {
             case 400:
-                $response['meta']['documentation_url'] = config('app.url') . '/api/v1/docs/errors#bad-request';
+                $response['meta']['documentation_url'] = config('app.url').'/api/v1/docs/errors#bad-request';
                 break;
             case 401:
                 $response['meta']['authentication_schemes'] = ['Bearer', 'API-Key'];
@@ -132,14 +132,14 @@ trait EnterpriseApiResponseTrait
                 $response['meta']['rate_limit'] = $details['rate_limit'] ?? [];
                 break;
             case 500:
-                $response['meta']['incident_id'] = 'INC-' . now()->format('Y-m-d') . '-' . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
+                $response['meta']['incident_id'] = 'INC-'.now()->format('Y-m-d').'-'.str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
                 break;
             case 502:
-                $response['meta']['service_status_url'] = config('app.url') . '/status';
+                $response['meta']['service_status_url'] = config('app.url').'/status';
                 break;
             case 503:
                 $response['meta']['estimated_recovery'] = now()->addHours(2)->toISOString();
-                $response['meta']['maintenance_info'] = config('app.url') . '/status/maintenance';
+                $response['meta']['maintenance_info'] = config('app.url').'/status/maintenance';
                 break;
         }
 
@@ -154,14 +154,14 @@ trait EnterpriseApiResponseTrait
         string $message = 'The request was well-formed but contains semantic errors'
     ): JsonResponse {
         $formattedErrors = [];
-        
+
         foreach ($validationErrors as $field => $errors) {
             foreach ($errors as $error) {
                 $formattedErrors[] = [
                     'field' => $field,
                     'code' => $this->getValidationErrorCode($error),
                     'message' => $error,
-                    'rejected_value' => '[REDACTED]' // Never expose actual values
+                    'rejected_value' => '[REDACTED]', // Never expose actual values
                 ];
             }
         }
@@ -220,7 +220,7 @@ trait EnterpriseApiResponseTrait
             'client_error',
             [
                 'resource_type' => $resourceType,
-                'resource_id' => $resourceId
+                'resource_id' => $resourceId,
             ]
         );
     }
@@ -230,8 +230,8 @@ trait EnterpriseApiResponseTrait
      */
     protected function conflictErrorResponse(
         string $message = 'The request conflicts with the current state of the resource',
-        string $conflictingField = null,
-        string $details = null
+        ?string $conflictingField = null,
+        ?string $details = null
     ): JsonResponse {
         $errorDetails = [];
         if ($conflictingField) {
@@ -269,8 +269,8 @@ trait EnterpriseApiResponseTrait
                     'limit' => $limit,
                     'remaining' => $remaining,
                     'reset_time' => now()->addSeconds($resetTime)->toISOString(),
-                    'retry_after' => $retryAfter
-                ]
+                    'retry_after' => $retryAfter,
+                ],
             ]
         );
     }
@@ -309,8 +309,9 @@ trait EnterpriseApiResponseTrait
     private function getRequestId(): string
     {
         $request = request();
-        return $request->header('X-Request-ID') ?: 
-               $request->header('X-Correlation-ID') ?: 
+
+        return $request->header('X-Request-ID') ?:
+               $request->header('X-Correlation-ID') ?:
                (string) Str::uuid();
     }
 
@@ -320,6 +321,7 @@ trait EnterpriseApiResponseTrait
     private function getExecutionTime(): int
     {
         $startTime = defined('LARAVEL_START') ? LARAVEL_START : microtime(true);
+
         return (int) ((microtime(true) - $startTime) * 1000);
     }
 
@@ -328,7 +330,7 @@ trait EnterpriseApiResponseTrait
      */
     private function getDefaultErrorCode(int $statusCode): string
     {
-        return match($statusCode) {
+        return match ($statusCode) {
             400 => 'BAD_REQUEST',
             401 => 'AUTHENTICATION_REQUIRED',
             403 => 'INSUFFICIENT_PERMISSIONS',
@@ -349,7 +351,7 @@ trait EnterpriseApiResponseTrait
      */
     private function getValidationErrorCode(string $error): string
     {
-        return match(true) {
+        return match (true) {
             str_contains($error, 'required') => 'REQUIRED',
             str_contains($error, 'email') => 'INVALID_FORMAT',
             str_contains($error, 'unique') => 'ALREADY_EXISTS',
