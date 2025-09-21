@@ -105,7 +105,7 @@ return [
     'cors' => [
         'allowed_origins' => explode(',', env('CORS_ORIGINS', 'https://app.hrms.local,https://admin.hrms.local')),
         'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key', 'X-Tenant-ID'],
+        'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With', 'HRMS-Client-Secret', 'HRMS-Client-ID'],
         'exposed_headers' => ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
         'max_age' => 86400,
         'supports_credentials' => true,

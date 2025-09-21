@@ -96,8 +96,8 @@ class ApiKeyRateLimitMiddleware
             return substr($authHeader, 7);
         }
 
-        // Check X-API-Key header
-        $apiKeyHeader = $request->header('X-API-Key');
+        // Check HRMS-Client-Secret header
+        $apiKeyHeader = $request->header('HRMS-Client-Secret');
         if ($apiKeyHeader) {
             return $apiKeyHeader;
         }

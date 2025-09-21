@@ -62,7 +62,7 @@ class PerformanceMonitoringMiddleware
             'level' => 'INFO',
             'service' => config('app.name', 'hrms-service'),
             'request_id' => $request->header('X-Request-ID', (string) \Illuminate\Support\Str::uuid()),
-            'tenant_id' => $request->header('X-Tenant-ID'),
+            'tenant_id' => $request->header('HRMS-Client-ID'),
             'endpoint' => $request->path(),
             'method' => $request->method(),
             'status_code' => $response->getStatusCode(),
@@ -115,7 +115,7 @@ class PerformanceMonitoringMiddleware
             Log::error('Performance threshold exceeded', [
                 'endpoint' => $request->path(),
                 'method' => $request->method(),
-                'tenant_id' => $request->header('X-Tenant-ID'),
+                'tenant_id' => $request->header('HRMS-Client-ID'),
                 'alerts' => $alerts,
                 'execution_time_ms' => $executionTime,
                 'memory_usage_mb' => round($memoryUsage / 1024 / 1024, 2),

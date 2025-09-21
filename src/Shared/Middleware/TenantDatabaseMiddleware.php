@@ -83,7 +83,7 @@ class TenantDatabaseMiddleware
     private function getTenantIdentifier(Request $request): ?string
     {
         // Try different header names
-        $tenantId = $request->header('X-Tenant-ID') 
+        $tenantId = $request->header('HRMS-Client-ID') 
                  ?? $request->header('X-Tenant-Domain')
                  ?? $request->header('Tenant-ID')
                  ?? $request->header('Tenant-Domain');

@@ -142,7 +142,7 @@ class StructuredLoggingMiddleware
      */
     private function getTenantId(Request $request): ?string
     {
-        return $request->header('X-Tenant-ID') ?: 
+        return $request->header('HRMS-Client-ID') ?: 
                $request->get('tenant_id') ?: 
                null;
     }

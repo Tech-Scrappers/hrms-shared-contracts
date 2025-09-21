@@ -35,7 +35,7 @@ class UnifiedAuthenticationMiddleware
     {
         try {
             // Try API key authentication first
-            $apiKey = $request->header('X-API-Key');
+            $apiKey = $request->header('HRMS-Client-Secret');
             if ($apiKey) {
                 return $this->handleApiKeyAuthentication($request, $next, $apiKey);
             }
@@ -46,7 +46,7 @@ class UnifiedAuthenticationMiddleware
                 return $this->handleOAuth2Authentication($request, $next, $authHeader);
             }
 
-            return $this->unauthorizedResponse('Authentication required. Provide either X-API-Key header or Authorization Bearer token.');
+            return $this->unauthorizedResponse('Authentication required. Provide either HRMS-Client-Secret header or Authorization Bearer token.');
         } catch (\Exception $e) {
             Log::error('UnifiedAuthenticationMiddleware error: ' . $e->getMessage(), ['exception' => $e]);
             return $this->serverErrorResponse('Authentication failed due to an internal server error.');
@@ -80,7 +80,7 @@ class UnifiedAuthenticationMiddleware
             if (!$tenantValidation['valid']) {
                 // Log security event for cross-tenant API key access attempt
                 $this->logSecurityEvent('api_key_cross_tenant_access_attempt', $apiKeyData, $request, [
-                    'requested_tenant_domain' => $request->header('X-Tenant-Domain'),
+                    'requested_tenant_domain' => $request->header('X-Tenant-Domain', 'not_provided'),
                     'api_key_tenant_id' => $apiKeyData['tenant_id'],
                     'reason' => $tenantValidation['message']
                 ]);
@@ -90,7 +90,20 @@ class UnifiedAuthenticationMiddleware
 
             // Set tenant context
             $tenantId = $apiKeyData['tenant_id'];
-            $request->merge(['tenant_id' => $tenantId]);
+            
+            // Get tenant information from database
+            $tenant = DB::connection('pgsql')
+                ->table('tenants')
+                ->where('id', $tenantId)
+                ->where('is_active', true)
+                ->first();
+            
+            $request->merge([
+                'tenant_id' => $tenantId,
+                'tenant_domain' => $tenant->domain,
+                'tenant_name' => $tenant->name
+            ]);
+            
             $this->hybridDatabaseService->switchToTenantDatabase($tenantId);
 
             // Set authenticated API key on request
@@ -148,7 +161,19 @@ class UnifiedAuthenticationMiddleware
                 $request->merge(['tenant_id' => null]);
             } else {
                 $tenantId = $user['tenant_id'];
-                $request->merge(['tenant_id' => $tenantId]);
+                
+                // Get tenant information from database
+                $tenant = DB::connection('pgsql')
+                    ->table('tenants')
+                    ->where('id', $tenantId)
+                    ->where('is_active', true)
+                    ->first();
+                
+                $request->merge([
+                    'tenant_id' => $tenantId,
+                    'tenant_domain' => $tenant->domain ?? null,
+                    'tenant_name' => $tenant->name ?? null
+                ]);
                 $this->hybridDatabaseService->switchToTenantDatabase($tenantId);
             }
 
@@ -322,33 +347,41 @@ class UnifiedAuthenticationMiddleware
             ];
         }
 
-        // Get requested tenant domain
-        $requestedTenantDomain = $request->header('X-Tenant-Domain');
-        if (!$requestedTenantDomain) {
-            Log::warning('OAuth2 authentication: Missing X-Tenant-Domain header', [
+        // Get tenant domain from database using tenant ID (optimization: no need for X-Tenant-Domain header)
+        $tenant = DB::connection('pgsql')
+            ->table('tenants')
+            ->where('id', $user['tenant_id'])
+            ->where('is_active', true)
+            ->first();
+
+        if (!$tenant) {
+            Log::warning('OAuth2 authentication: Tenant not found or inactive', [
                 'user_id' => $user['id'] ?? 'N/A',
                 'tenant_id' => $user['tenant_id'],
                 'ip' => $request->ip(),
             ]);
             return [
                 'valid' => false,
-                'message' => 'Tenant domain header is required'
+                'message' => 'Tenant not found or inactive'
             ];
         }
 
-        // Validate tenant domain matches user's tenant
-        $tenantValidation = $this->validateTenantDomainMatch($user['tenant_id'], $requestedTenantDomain);
-        if (!$tenantValidation['valid']) {
-            // Log security event for cross-tenant access attempt
-            $this->logSecurityEvent('cross_tenant_access_attempt', $user, $request, [
-                'requested_tenant_domain' => $requestedTenantDomain,
-                'user_tenant_id' => $user['tenant_id'],
-                'reason' => $tenantValidation['message']
+        // Set tenant domain from database
+        $requestedTenantDomain = $tenant->domain;
+        
+        // Optional: Validate X-Tenant-Domain header if provided (for backward compatibility)
+        $headerTenantDomain = $request->header('X-Tenant-Domain');
+        if ($headerTenantDomain && $headerTenantDomain !== $requestedTenantDomain) {
+            Log::warning('OAuth2 authentication: X-Tenant-Domain header mismatch', [
+                'user_id' => $user['id'] ?? 'N/A',
+                'tenant_id' => $user['tenant_id'],
+                'expected_domain' => $requestedTenantDomain,
+                'provided_domain' => $headerTenantDomain,
+                'ip' => $request->ip(),
             ]);
-            
             return [
                 'valid' => false,
-                'message' => 'Access denied: Token is not valid for the requested tenant'
+                'message' => "Token is valid for '{$requestedTenantDomain}' but requested '{$headerTenantDomain}'"
             ];
         }
 
@@ -451,7 +484,7 @@ class UnifiedAuthenticationMiddleware
                 $request,
                 [
                     'authentication_method' => 'oauth2',
-                    'tenant_domain' => $request->header('X-Tenant-Domain'),
+                    'tenant_domain' => $request->header('X-Tenant-Domain', 'derived_from_tenant_id'),
                     'user_role' => $user['role'] ?? 'unknown'
                 ]
             );
@@ -478,26 +511,42 @@ class UnifiedAuthenticationMiddleware
             ];
         }
 
-        // Get requested tenant domain
-        $requestedTenantDomain = $request->header('X-Tenant-Domain');
-        if (!$requestedTenantDomain) {
-            Log::warning('API key authentication: Missing X-Tenant-Domain header', [
+        // Get tenant domain from database using tenant ID (optimization: no need for X-Tenant-Domain header)
+        $tenant = DB::connection('pgsql')
+            ->table('tenants')
+            ->where('id', $apiKeyData['tenant_id'])
+            ->where('is_active', true)
+            ->first();
+
+        if (!$tenant) {
+            Log::warning('API key authentication: Tenant not found or inactive', [
                 'api_key_id' => $apiKeyData['id'] ?? 'N/A',
                 'tenant_id' => $apiKeyData['tenant_id'],
                 'ip' => $request->ip(),
             ]);
             return [
                 'valid' => false,
-                'message' => 'Tenant domain header is required'
+                'message' => 'Tenant not found or inactive'
             ];
         }
 
-        // Validate tenant domain matches API key's tenant
-        $tenantValidation = $this->validateTenantDomainMatch($apiKeyData['tenant_id'], $requestedTenantDomain);
-        if (!$tenantValidation['valid']) {
+        // Set tenant domain from database
+        $requestedTenantDomain = $tenant->domain;
+        
+        // Optional: Validate X-Tenant-Domain header if provided (for backward compatibility)
+        $headerTenantDomain = $request->header('X-Tenant-Domain');
+        
+        if ($headerTenantDomain && $headerTenantDomain !== $requestedTenantDomain) {
+            Log::warning('API key authentication: X-Tenant-Domain header mismatch', [
+                'api_key_id' => $apiKeyData['id'] ?? 'N/A',
+                'tenant_id' => $apiKeyData['tenant_id'],
+                'expected_domain' => $requestedTenantDomain,
+                'provided_domain' => $headerTenantDomain,
+                'ip' => $request->ip(),
+            ]);
             return [
                 'valid' => false,
-                'message' => 'Access denied: API key is not valid for the requested tenant'
+                'message' => "API key is valid for '{$requestedTenantDomain}' but requested '{$headerTenantDomain}'"
             ];
         }
 
@@ -517,7 +566,7 @@ class UnifiedAuthenticationMiddleware
                 $request,
                 [
                     'authentication_method' => 'api_key',
-                    'tenant_domain' => $request->header('X-Tenant-Domain'),
+                    'tenant_domain' => $request->header('X-Tenant-Domain', 'derived_from_tenant_id'),
                     'api_key_name' => $apiKeyData['name'] ?? 'unknown'
                 ]
             );

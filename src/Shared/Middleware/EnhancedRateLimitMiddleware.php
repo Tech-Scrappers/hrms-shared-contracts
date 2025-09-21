@@ -50,7 +50,7 @@ class EnhancedRateLimitMiddleware
     private function getRateLimitIdentifier(Request $request): string
     {
         // Use API key if present
-        $apiKey = $request->header('X-API-Key');
+        $apiKey = $request->header('HRMS-Client-Secret');
         if ($apiKey) {
             return 'api_key_' . hash('sha256', $apiKey);
         }

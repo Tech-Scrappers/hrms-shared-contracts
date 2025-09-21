@@ -107,7 +107,7 @@ class SecurityServiceProvider extends ServiceProvider
 
             // Rate limit status
             Route::get('/rate-limit-status', function () {
-                $identifier = request()->header('X-API-Key') ?: request()->ip();
+                $identifier = request()->header('HRMS-Client-Secret') ?: request()->ip();
                 return response()->json(EnhancedRateLimitMiddleware::getRateLimitStatus($identifier));
             });
 

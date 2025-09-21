@@ -43,8 +43,12 @@ class HybridTenantDatabaseMiddleware
             // CRITICAL: Use tenant['id'] instead of tenantId for consistency
             $actualTenantId = $tenant['id'];
             
-            // Check if tenant service database exists
-            $databaseName = "tenant_{$actualTenantId}_{$currentService}";
+            // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
+            $domain = $tenant['domain'];
+            $domainPrefix = explode('.', $domain)[0];
+            
+            // Check if tenant service database exists using correct naming convention
+            $databaseName = "hrms_tenant_{$domainPrefix}";
             if (!$this->tenantServiceDatabaseExists($databaseName)) {
                 return $this->errorResponse("Tenant {$currentService} database not found", 404);
             }
@@ -107,8 +111,8 @@ class HybridTenantDatabaseMiddleware
      */
     private function getTenantIdentifier(Request $request): ?string
     {
-        // Try X-Tenant-ID header first
-        $tenantId = $request->header('X-Tenant-ID');
+        // Try HRMS-Client-ID header first
+        $tenantId = $request->header('HRMS-Client-ID');
         if ($tenantId) {
             return $tenantId;
         }

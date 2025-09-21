@@ -26,7 +26,7 @@ class CsrfProtectionMiddleware
         }
 
         // Skip CSRF protection for API key authenticated requests
-        if ($request->hasHeader('X-API-Key')) {
+        if ($request->hasHeader('HRMS-Client-Secret')) {
             return $next($request);
         }
 

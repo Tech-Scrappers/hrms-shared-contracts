@@ -42,8 +42,18 @@ class DatabaseConnectionManager
     {
         self::initialize();
 
+        // Get tenant info to extract domain
+        $tenant = self::getTenant($tenantId);
+        if (!$tenant) {
+            throw new Exception("Tenant not found: {$tenantId}");
+        }
+        
+        // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
+        $domain = $tenant['domain'];
+        $domainPrefix = explode('.', $domain)[0];
+        
         $connectionName = "tenant_{$tenantId}_{$service}";
-        $databaseName = "tenant_{$tenantId}_{$service}";
+        $databaseName = "hrms_tenant_{$domainPrefix}";
 
         try {
             // Check if connection already exists in pool
@@ -113,8 +123,18 @@ class DatabaseConnectionManager
      */
     private static function createTenantConnection(string $tenantId, string $service): void
     {
+        // Get tenant info to extract domain
+        $tenant = self::getTenant($tenantId);
+        if (!$tenant) {
+            throw new Exception("Tenant not found: {$tenantId}");
+        }
+        
+        // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
+        $domain = $tenant['domain'];
+        $domainPrefix = explode('.', $domain)[0];
+        
         $connectionName = "tenant_{$tenantId}_{$service}";
-        $databaseName = "tenant_{$tenantId}_{$service}";
+        $databaseName = "hrms_tenant_{$domainPrefix}";
         
         // Use main postgres user for all tenant databases (production-ready approach)
         $username = Config::get('database.connections.pgsql.username', 'postgres');
@@ -192,10 +212,10 @@ class DatabaseConnectionManager
             if (str_starts_with($connectionName, 'tenant_')) {
                 $dbResult = $connection->select('SELECT current_database() as db_name');
                 $actualDb = $dbResult[0]->db_name ?? 'unknown';
-                $expectedDb = $connectionName; // The connection name should match the database name
                 
-                if ($actualDb !== $expectedDb) {
-                    throw new Exception("Connected to wrong database. Expected: {$expectedDb}, Got: {$actualDb}");
+                // For tenant connections, we expect the database to be hrms_tenant_* format
+                if (!str_starts_with($actualDb, 'hrms_tenant_')) {
+                    throw new Exception("Connected to wrong database. Expected: hrms_tenant_*, Got: {$actualDb}");
                 }
             }
 
@@ -298,6 +318,27 @@ class DatabaseConnectionManager
                     ]);
                 }
             }
+        }
+    }
+
+    /**
+     * Get tenant by ID
+     */
+    private static function getTenant(string $tenantId): ?array
+    {
+        try {
+            $tenant = DB::connection('pgsql')
+                ->table('tenants')
+                ->where('id', $tenantId)
+                ->first();
+            
+            return $tenant ? (array) $tenant : null;
+        } catch (Exception $e) {
+            Log::error('Failed to get tenant', [
+                'tenant_id' => $tenantId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
         }
     }
 }

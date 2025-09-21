@@ -79,7 +79,7 @@ class ResponseCachingMiddleware
      */
     private function generateCacheKey(Request $request): string
     {
-        $tenantId = $request->header('X-Tenant-ID', 'default');
+        $tenantId = $request->header('HRMS-Client-ID', 'default');
         $path = $request->path();
         $queryString = $request->getQueryString() ?: '';
         $userAgent = $request->header('User-Agent', '');

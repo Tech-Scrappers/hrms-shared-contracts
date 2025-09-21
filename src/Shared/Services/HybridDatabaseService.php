@@ -221,7 +221,17 @@ class HybridDatabaseService
      */
     private function generateServiceDatabaseName(string $tenantId, string $service): string
     {
-        return "tenant_{$tenantId}_{$service}";
+        // Get tenant info to extract domain
+        $tenant = $this->getTenant($tenantId);
+        if (!$tenant) {
+            throw new Exception("Tenant not found: {$tenantId}");
+        }
+        
+        // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
+        $domain = $tenant['domain'];
+        $domainPrefix = explode('.', $domain)[0];
+        
+        return "hrms_tenant_{$domainPrefix}";
     }
     
     /**

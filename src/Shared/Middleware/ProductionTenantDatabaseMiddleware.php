@@ -99,8 +99,8 @@ class ProductionTenantDatabaseMiddleware
      */
     private function getTenantIdentifier(Request $request): ?string
     {
-        // Try X-Tenant-ID header first
-        $tenantId = $request->header('X-Tenant-ID');
+        // Try HRMS-Client-ID header first
+        $tenantId = $request->header('HRMS-Client-ID');
         if ($tenantId) {
             return $tenantId;
         }
