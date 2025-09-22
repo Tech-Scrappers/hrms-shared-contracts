@@ -50,12 +50,10 @@ class DatabaseConnectionManager
             throw new Exception("Tenant not found: {$tenantId}");
         }
 
-        // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
-        $domain = $tenant['domain'];
-        $domainPrefix = explode('.', $domain)[0];
-
+        // Use standardized per-tenant-per-service database naming
+        // Matches reset scripts and service migration flows: tenant_{tenantId}_{service}
         $connectionName = "tenant_{$tenantId}_{$service}";
-        $databaseName = "hrms_tenant_{$domainPrefix}";
+        $databaseName = "tenant_{$tenantId}_{$service}";
 
         try {
             // Check if connection already exists in pool
@@ -132,12 +130,9 @@ class DatabaseConnectionManager
             throw new Exception("Tenant not found: {$tenantId}");
         }
 
-        // Extract domain prefix (e.g., "acme" from "acme.hrms.local")
-        $domain = $tenant['domain'];
-        $domainPrefix = explode('.', $domain)[0];
-
+        // Use standardized per-tenant-per-service database naming
         $connectionName = "tenant_{$tenantId}_{$service}";
-        $databaseName = "hrms_tenant_{$domainPrefix}";
+        $databaseName = "tenant_{$tenantId}_{$service}";
 
         // Use main postgres user for all tenant databases (production-ready approach)
         $username = Config::get('database.connections.pgsql.username', 'postgres');
@@ -211,15 +206,15 @@ class DatabaseConnectionManager
                 throw new Exception("Connection test failed for {$connectionName}");
             }
 
-            // Verify database name if it's a tenant connection
-            if (str_starts_with($connectionName, 'tenant_')) {
+        // Verify database name if it's a tenant connection
+        if (str_starts_with($connectionName, 'tenant_')) {
                 $dbResult = $connection->select('SELECT current_database() as db_name');
                 $actualDb = $dbResult[0]->db_name ?? 'unknown';
 
-                // For tenant connections, we expect the database to be hrms_tenant_* format
-                if (! str_starts_with($actualDb, 'hrms_tenant_')) {
-                    throw new Exception("Connected to wrong database. Expected: hrms_tenant_*, Got: {$actualDb}");
-                }
+            // For tenant connections, we expect the database to be tenant_{tenantId}_{service}
+            if (! str_starts_with($actualDb, 'tenant_')) {
+                throw new Exception("Connected to wrong database. Expected: tenant_*, Got: {$actualDb}");
+            }
             }
 
         } catch (Exception $e) {

@@ -48,7 +48,7 @@ class HybridTenantDatabaseMiddleware
             $domainPrefix = explode('.', $domain)[0];
 
             // Check if tenant service database exists using correct naming convention
-            $databaseName = "hrms_tenant_{$domainPrefix}";
+            $databaseName = "tenant_{$actualTenantId}_{$currentService}";
             if (! $this->tenantServiceDatabaseExists($databaseName)) {
                 return $this->errorResponse("Tenant {$currentService} database not found", 404);
             }
