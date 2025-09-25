@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Shared\Services\ApiKeyService;
 use Shared\Services\HybridDatabaseService;
+use Shared\Services\SecurityService;
+use Shared\Services\DatabaseOptimizationService;
 
 class UnifiedAuthenticationMiddleware
 {
@@ -19,10 +21,20 @@ class UnifiedAuthenticationMiddleware
 
     protected $hybridDatabaseService;
 
-    public function __construct(ApiKeyService $apiKeyService, HybridDatabaseService $hybridDatabaseService)
-    {
+    protected $securityService;
+
+    protected $databaseOptimizationService;
+
+    public function __construct(
+        ApiKeyService $apiKeyService, 
+        HybridDatabaseService $hybridDatabaseService,
+        SecurityService $securityService,
+        DatabaseOptimizationService $databaseOptimizationService
+    ) {
         $this->apiKeyService = $apiKeyService;
         $this->hybridDatabaseService = $hybridDatabaseService;
+        $this->securityService = $securityService;
+        $this->databaseOptimizationService = $databaseOptimizationService;
     }
 
     /**
@@ -33,9 +45,10 @@ class UnifiedAuthenticationMiddleware
     public function handle(Request $request, Closure $next): Response|\Illuminate\Http\JsonResponse
     {
         try {
-            // Try API key authentication first
+            // Try API key authentication first (only if both secret and ID are present)
             $apiKey = $request->header('HRMS-Client-Secret');
-            if ($apiKey) {
+            $clientId = $request->header('HRMS-Client-ID');
+            if ($apiKey && $clientId) {
                 return $this->handleApiKeyAuthentication($request, $next, $apiKey);
             }
 
@@ -79,9 +92,8 @@ class UnifiedAuthenticationMiddleware
             $tenantValidation = $this->validateApiKeyTenantContext($request, $apiKeyData);
             if (! $tenantValidation['valid']) {
                 // Log security event for cross-tenant API key access attempt
-                $this->logSecurityEvent('api_key_cross_tenant_access_attempt', $apiKeyData, $request, [
+                $this->securityService->logApiKeyEvent('api_key_cross_tenant_access_attempt', $apiKeyData, $request, [
                     'requested_tenant_domain' => $request->header('X-Tenant-Domain', 'not_provided'),
-                    'api_key_tenant_id' => $apiKeyData['tenant_id'],
                     'reason' => $tenantValidation['message'],
                 ]);
 
@@ -91,12 +103,8 @@ class UnifiedAuthenticationMiddleware
             // Set tenant context
             $tenantId = $apiKeyData['tenant_id'];
 
-            // Get tenant information from database
-            $tenant = DB::connection('pgsql')
-                ->table('tenants')
-                ->where('id', $tenantId)
-                ->where('is_active', true)
-                ->first();
+            // Get tenant information from database (with caching)
+            $tenant = $this->databaseOptimizationService->getCachedTenant($tenantId);
 
             $request->merge([
                 'tenant_id' => $tenantId,
@@ -108,6 +116,9 @@ class UnifiedAuthenticationMiddleware
 
             // Set authenticated API key on request
             $request->merge(['api_key' => $apiKeyData]);
+            
+            // Expose API key permissions for downstream scope middleware
+            $request->merge(['api_key_permissions' => $apiKeyData['permissions'] ?? []]);
 
             // Set auth_user in request for downstream middleware
             $authUser = [
@@ -142,11 +153,27 @@ class UnifiedAuthenticationMiddleware
         try {
             $token = Str::substr($authHeader, 7);
 
+            Log::info('OAuth2 authentication attempt', [
+                'token_preview' => substr($token, 0, 20) . '...',
+                'ip' => $request->ip(),
+            ]);
+
             // Validate token with identity service
             $user = $this->validateTokenWithIdentityService($token);
             if (! $user) {
+                Log::warning('OAuth2 authentication failed: Invalid or expired token', [
+                    'token_preview' => substr($token, 0, 20) . '...',
+                    'ip' => $request->ip(),
+                ]);
                 return $this->unauthorizedResponse('Invalid or expired token');
             }
+
+            Log::info('OAuth2 authentication successful', [
+                'user_id' => $user['id'] ?? 'N/A',
+                'role' => $user['role'] ?? 'N/A',
+                'tenant_id' => $user['tenant_id'] ?? 'N/A',
+                'scopes' => $user['scopes'] ?? [],
+            ]);
 
             // Validate tenant context
             $tenantValidation = $this->validateTenantContext($request, $user);
@@ -180,6 +207,11 @@ class UnifiedAuthenticationMiddleware
 
             // Set auth_user in request for downstream middleware
             $request->merge(['auth_user' => $user]);
+
+            // Add scopes to request for scope middleware
+            if (isset($user['scopes'])) {
+                $request->merge(['user_scopes' => $user['scopes']]);
+            }
 
             // Set the authenticated user in Laravel's auth system
             $this->setAuthenticatedUser($request, $user);
@@ -244,33 +276,64 @@ class UnifiedAuthenticationMiddleware
             // Decode JWT to get the JTI (token ID)
             $payload = $this->decodeJwtPayload($token);
             if (! $payload || ! isset($payload['jti'])) {
+                Log::warning('OAuth2 token validation failed: Invalid JWT payload', [
+                    'token_preview' => substr($token, 0, 20) . '...',
+                ]);
                 return null;
             }
 
             $tokenId = $payload['jti'];
+            Log::debug('OAuth2 token validation: JWT decoded', [
+                'jti' => $tokenId,
+                'sub' => $payload['sub'] ?? 'N/A',
+            ]);
 
             // Use Passport to validate the token
             $tokenModel = \Laravel\Passport\Token::where('id', $tokenId)->first();
             if (! $tokenModel || $tokenModel->revoked) {
+                Log::warning('OAuth2 token validation failed: Token not found or revoked', [
+                    'token_id' => $tokenId,
+                    'found' => $tokenModel ? 'YES' : 'NO',
+                    'revoked' => $tokenModel?->revoked ?? 'N/A',
+                ]);
                 return null;
             }
 
-            // Get user from token
-            $user = \App\Models\User::find($tokenModel->user_id);
+            // Get user from token with role relationship loaded
+            $user = \App\Models\User::with('role')->find($tokenModel->user_id);
             if (! $user || ! $user->is_active) {
+                Log::warning('OAuth2 token validation failed: User not found or inactive', [
+                    'user_id' => $tokenModel->user_id,
+                    'user_found' => $user ? 'YES' : 'NO',
+                    'user_active' => $user?->is_active ?? 'N/A',
+                ]);
                 return null;
             }
 
+            // Get token scopes from the token model
+            $tokenScopes = $tokenModel->scopes ?? [];
+            
+            Log::debug('OAuth2 token validation successful', [
+                'user_id' => $user->id,
+                'user_role' => $user->role?->code ?? 'N/A',
+                'tenant_id' => $user->tenant_id,
+                'scopes' => $tokenScopes,
+            ]);
+            
             return [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $user->role,
+                'role' => $user->role?->code ?? 'tenant_admin',
                 'tenant_id' => $user->tenant_id,
                 'is_active' => $user->is_active,
+                'scopes' => $tokenScopes,
             ];
         } catch (\Exception $e) {
-            Log::error('Error validating token locally: '.$e->getMessage(), ['exception' => $e]);
+            Log::error('Error validating token locally: '.$e->getMessage(), [
+                'exception' => $e,
+                'token_preview' => substr($token, 0, 20) . '...',
+            ]);
 
             return null;
         }
@@ -331,6 +394,7 @@ class UnifiedAuthenticationMiddleware
         ], 500);
     }
 
+
     /**
      * Validate tenant context for OAuth2 authentication
      */
@@ -355,12 +419,8 @@ class UnifiedAuthenticationMiddleware
             ];
         }
 
-        // Get tenant domain from database using tenant ID (optimization: no need for X-Tenant-Domain header)
-        $tenant = DB::connection('pgsql')
-            ->table('tenants')
-            ->where('id', $user['tenant_id'])
-            ->where('is_active', true)
-            ->first();
+        // Get tenant domain from database using tenant ID (with caching)
+        $tenant = $this->databaseOptimizationService->getCachedTenant($user['tenant_id']);
 
         if (! $tenant) {
             Log::warning('OAuth2 authentication: Tenant not found or inactive', [
@@ -372,6 +432,36 @@ class UnifiedAuthenticationMiddleware
             return [
                 'valid' => false,
                 'message' => 'Tenant not found or inactive',
+            ];
+        }
+
+        // CRITICAL: Validate HRMS-Client-ID header matches user's tenant_id
+        $requestedTenantId = $request->header('HRMS-Client-ID');
+        
+        if (!$requestedTenantId) {
+            Log::warning('OAuth2 authentication: HRMS-Client-ID header missing', [
+                'user_id' => $user['id'] ?? 'N/A',
+                'tenant_id' => $user['tenant_id'],
+                'ip' => $request->ip(),
+            ]);
+
+            return [
+                'valid' => false,
+                'message' => 'HRMS-Client-ID header is required',
+            ];
+        }
+
+        if ($requestedTenantId !== $user['tenant_id']) {
+            Log::warning('OAuth2 authentication: HRMS-Client-ID header mismatch', [
+                'user_id' => $user['id'] ?? 'N/A',
+                'user_tenant_id' => $user['tenant_id'],
+                'requested_tenant_id' => $requestedTenantId,
+                'ip' => $request->ip(),
+            ]);
+
+            return [
+                'valid' => false,
+                'message' => "Token is valid for tenant '{$user['tenant_id']}' but requested tenant '{$requestedTenantId}'",
             ];
         }
 
@@ -545,6 +635,44 @@ class UnifiedAuthenticationMiddleware
             return [
                 'valid' => false,
                 'message' => 'Tenant not found or inactive',
+            ];
+        }
+
+        // CRITICAL: Validate HRMS-Client-ID header matches API key's tenant_id
+        $requestedTenantId = $request->header('HRMS-Client-ID');
+        
+        if (!$requestedTenantId) {
+            Log::warning('API key authentication: HRMS-Client-ID header missing', [
+                'api_key_id' => $apiKeyData['id'] ?? 'N/A',
+                'tenant_id' => $apiKeyData['tenant_id'],
+                'ip' => $request->ip(),
+            ]);
+
+            return [
+                'valid' => false,
+                'message' => 'HRMS-Client-ID header is required',
+            ];
+        }
+
+        // SECURITY: Strict tenant validation to prevent cross-tenant access
+        if ($requestedTenantId !== $apiKeyData['tenant_id']) {
+            // Log security event for cross-tenant access attempt
+            $this->securityService->logApiKeyEvent('api_key_cross_tenant_access_attempt', $apiKeyData, $request, [
+                'api_key_tenant_id' => $apiKeyData['tenant_id'],
+                'requested_tenant_id' => $requestedTenantId,
+            ]);
+
+            Log::warning('API key authentication: Cross-tenant access attempt blocked', [
+                'api_key_id' => $apiKeyData['id'] ?? 'N/A',
+                'api_key_tenant_id' => $apiKeyData['tenant_id'],
+                'requested_tenant_id' => $requestedTenantId,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return [
+                'valid' => false,
+                'message' => "Access denied: API key belongs to different tenant",
             ];
         }
 

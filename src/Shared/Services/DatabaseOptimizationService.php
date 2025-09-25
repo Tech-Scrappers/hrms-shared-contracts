@@ -2,196 +2,116 @@
 
 namespace Shared\Services;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class DatabaseOptimizationService
 {
-    private TenantAwareCacheService $cacheService;
-
-    public function __construct(TenantAwareCacheService $cacheService)
+    /**
+     * Cache tenant information to reduce database queries
+     */
+    public function getCachedTenant(string $tenantId): ?object
     {
-        $this->cacheService = $cacheService;
+        $cacheKey = "tenant:{$tenantId}";
+        
+        return Cache::remember($cacheKey, 3600, function () use ($tenantId) {
+            return DB::connection('pgsql')
+                ->table('tenants')
+                ->where('id', $tenantId)
+                ->where('is_active', true)
+                ->select(['id', 'name', 'domain', 'is_active', 'created_at'])
+                ->first();
+        });
     }
 
     /**
-     * Optimize query with caching and eager loading
+     * Cache API key validation to reduce database queries
      */
-    public function optimizeQuery(Builder $query, string $cacheKey, int $ttl = 300, array $eagerLoad = []): Builder
+    public function getCachedApiKey(string $keyHash): ?object
     {
-        // Add eager loading to prevent N+1 queries
-        if (! empty($eagerLoad)) {
-            $query->with($eagerLoad);
-        }
-
-        // Add query logging for optimization
-        $this->logQuery($query);
-
-        return $query;
+        $cacheKey = "api_key:{$keyHash}";
+        
+        return Cache::remember($cacheKey, 300, function () use ($keyHash) {
+            return DB::connection('pgsql')
+                ->table('api_keys')
+                ->where('key_hash', $keyHash)
+                ->where('is_active', true)
+                ->select(['id', 'tenant_id', 'name', 'permissions', 'expires_at', 'is_active'])
+                ->first();
+        });
     }
 
     /**
-     * Execute cached query
+     * Invalidate tenant cache
      */
-    public function executeCachedQuery(Builder $query, string $cacheKey, int $ttl = 300)
+    public function invalidateTenantCache(string $tenantId): void
     {
-        return $this->cacheService->cacheQuery($cacheKey, function () use ($query) {
-            return $query->get();
-        }, $ttl);
+        $cacheKey = "tenant:{$tenantId}";
+        Cache::forget($cacheKey);
     }
 
     /**
-     * Execute cached paginated query
+     * Invalidate API key cache
      */
-    public function executeCachedPaginatedQuery(Builder $query, string $cacheKey, int $perPage = 20, int $ttl = 300)
+    public function invalidateApiKeyCache(string $keyHash): void
     {
-        return $this->cacheService->cacheQuery($cacheKey, function () use ($query, $perPage) {
-            return $query->paginate($perPage);
-        }, $ttl);
+        $cacheKey = "api_key:{$keyHash}";
+        Cache::forget($cacheKey);
     }
 
     /**
-     * Execute cached count query
+     * Batch load multiple tenants
      */
-    public function executeCachedCountQuery(Builder $query, string $cacheKey, int $ttl = 300)
+    public function batchLoadTenants(array $tenantIds): array
     {
-        return $this->cacheService->cacheQuery($cacheKey, function () use ($query) {
-            return $query->count();
-        }, $ttl);
-    }
-
-    /**
-     * Execute cached single result query
-     */
-    public function executeCachedSingleQuery(Builder $query, string $cacheKey, int $ttl = 300)
-    {
-        return $this->cacheService->cacheQuery($cacheKey, function () use ($query) {
-            return $query->first();
-        }, $ttl);
-    }
-
-    /**
-     * Optimize model queries with proper indexing hints
-     */
-    public function optimizeModelQuery(Model $model, array $conditions = [], array $eagerLoad = []): Builder
-    {
-        $query = $model->newQuery();
-
-        // Apply conditions with proper indexing
-        foreach ($conditions as $field => $value) {
-            if (is_array($value)) {
-                $query->whereIn($field, $value);
-            } else {
-                $query->where($field, $value);
+        $cacheKeys = array_map(fn($id) => "tenant:{$id}", $tenantIds);
+        $cached = Cache::many($cacheKeys);
+        
+        $missing = [];
+        foreach ($tenantIds as $tenantId) {
+            if (!isset($cached["tenant:{$tenantId}"])) {
+                $missing[] = $tenantId;
             }
         }
 
-        // Add eager loading
-        if (! empty($eagerLoad)) {
-            $query->with($eagerLoad);
+        if (!empty($missing)) {
+            $tenants = DB::connection('pgsql')
+                ->table('tenants')
+                ->whereIn('id', $missing)
+                ->where('is_active', true)
+                ->select(['id', 'name', 'domain', 'is_active', 'created_at'])
+                ->get()
+                ->keyBy('id');
+
+            foreach ($tenants as $tenant) {
+                Cache::put("tenant:{$tenant->id}", $tenant, 3600);
+            }
+
+            $cached = array_merge($cached, $tenants->toArray());
         }
 
-        // Add query optimization hints
-        $this->addQueryHints($query);
-
-        return $query;
+        return $cached;
     }
 
     /**
-     * Add database-specific query hints
+     * Optimize database connection pool
      */
-    private function addQueryHints(Builder $query): void
+    public function optimizeConnectionPool(): void
     {
-        $connection = $query->getConnection();
-        $driver = $connection->getDriverName();
-
-        switch ($driver) {
-            case 'pgsql':
-                // PostgreSQL specific optimizations
-                $query->selectRaw('*');
-                break;
-            case 'mysql':
-                // MySQL specific optimizations
-                $query->selectRaw('*');
-                break;
-        }
-    }
-
-    /**
-     * Log query for optimization analysis
-     */
-    private function logQuery(Builder $query): void
-    {
-        if (config('app.debug', false)) {
-            $sql = $query->toSql();
-            $bindings = $query->getBindings();
-
-            Log::debug('Database Query', [
-                'sql' => $sql,
-                'bindings' => $bindings,
-                'tenant_id' => $this->cacheService->getTenantId() ?? 'unknown',
-            ]);
-        }
-    }
-
-    /**
-     * Get query execution plan
-     */
-    public function getQueryPlan(Builder $query): array
-    {
-        $connection = $query->getConnection();
-        $driver = $connection->getDriverName();
-
         try {
-            switch ($driver) {
-                case 'pgsql':
-                    $explainQuery = 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) '.$query->toSql();
-                    $result = DB::select($explainQuery, $query->getBindings());
-
-                    return json_decode($result[0]->explain, true);
-
-                case 'mysql':
-                    $explainQuery = 'EXPLAIN FORMAT=JSON '.$query->toSql();
-                    $result = DB::select($explainQuery, $query->getBindings());
-
-                    return json_decode($result[0]->explain, true);
-
-                default:
-                    return [];
-            }
+            // Set connection pool settings for PostgreSQL
+            DB::connection('pgsql')->statement('SET max_connections = 100');
+            DB::connection('pgsql')->statement('SET shared_buffers = 256MB');
+            DB::connection('pgsql')->statement('SET effective_cache_size = 1GB');
+            DB::connection('pgsql')->statement('SET work_mem = 4MB');
+            DB::connection('pgsql')->statement('SET maintenance_work_mem = 64MB');
+            
+            Log::info('Database connection pool optimized');
         } catch (\Exception $e) {
-            Log::warning('Failed to get query plan', [
+            Log::warning('Failed to optimize database connection pool', [
                 'error' => $e->getMessage(),
-                'driver' => $driver,
             ]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Optimize database connection settings
-     */
-    public function optimizeConnection(): void
-    {
-        $connection = DB::connection();
-        $driver = $connection->getDriverName();
-
-        switch ($driver) {
-            case 'pgsql':
-                // PostgreSQL optimizations
-                DB::statement('SET work_mem = 256MB');
-                DB::statement('SET shared_buffers = 256MB');
-                DB::statement('SET effective_cache_size = 1GB');
-                break;
-
-            case 'mysql':
-                // MySQL optimizations
-                DB::statement('SET SESSION query_cache_type = ON');
-                DB::statement('SET SESSION query_cache_size = 268435456'); // 256MB
-                break;
         }
     }
 
@@ -200,118 +120,106 @@ class DatabaseOptimizationService
      */
     public function getPerformanceMetrics(): array
     {
-        $connection = DB::connection();
-        $driver = $connection->getDriverName();
-
         try {
-            switch ($driver) {
-                case 'pgsql':
-                    return $this->getPostgreSQLMetrics();
-                case 'mysql':
-                    return $this->getMySQLMetrics();
-                default:
-                    return [];
-            }
+            $metrics = DB::connection('pgsql')->select("
+                SELECT 
+                    schemaname,
+                    tablename,
+                    attname,
+                    n_distinct,
+                    correlation
+                FROM pg_stats 
+                WHERE schemaname = 'public' 
+                ORDER BY n_distinct DESC 
+                LIMIT 10
+            ");
+
+            $connections = DB::connection('pgsql')->select("
+                SELECT 
+                    count(*) as active_connections,
+                    state
+                FROM pg_stat_activity 
+                WHERE state = 'active'
+                GROUP BY state
+            ");
+
+            return [
+                'table_stats' => $metrics,
+                'connections' => $connections,
+                'timestamp' => now()->toISOString(),
+            ];
         } catch (\Exception $e) {
-            Log::error('Failed to get performance metrics', [
+            Log::error('Failed to get database performance metrics', [
                 'error' => $e->getMessage(),
-                'driver' => $driver,
             ]);
 
-            return [];
+            return [
+                'error' => 'Failed to retrieve metrics',
+                'timestamp' => now()->toISOString(),
+            ];
         }
     }
 
     /**
-     * Get PostgreSQL performance metrics
+     * Clean up old security events
      */
-    private function getPostgreSQLMetrics(): array
-    {
-        $metrics = [];
-
-        // Connection count
-        $connectionCount = DB::selectOne("
-            SELECT count(*) as connections 
-            FROM pg_stat_activity 
-            WHERE state = 'active'
-        ");
-        $metrics['active_connections'] = $connectionCount->connections ?? 0;
-
-        // Cache hit ratio
-        $cacheHitRatio = DB::selectOne('
-            SELECT 
-                round(100.0 * sum(blks_hit) / (sum(blks_hit) + sum(blks_read)), 2) as hit_ratio
-            FROM pg_stat_database 
-            WHERE datname = current_database()
-        ');
-        $metrics['cache_hit_ratio'] = $cacheHitRatio->hit_ratio ?? 0;
-
-        // Database size
-        $dbSize = DB::selectOne('
-            SELECT pg_size_pretty(pg_database_size(current_database())) as size
-        ');
-        $metrics['database_size'] = $dbSize->size ?? 'Unknown';
-
-        return $metrics;
-    }
-
-    /**
-     * Get MySQL performance metrics
-     */
-    private function getMySQLMetrics(): array
-    {
-        $metrics = [];
-
-        // Connection count
-        $connectionCount = DB::selectOne("SHOW STATUS LIKE 'Threads_connected'");
-        $metrics['active_connections'] = $connectionCount->Value ?? 0;
-
-        // Query cache hit ratio
-        $queryCache = DB::selectOne("SHOW STATUS LIKE 'Qcache_hits'");
-        $queryCacheInserts = DB::selectOne("SHOW STATUS LIKE 'Qcache_inserts'");
-
-        $hits = $queryCache->Value ?? 0;
-        $inserts = $queryCacheInserts->Value ?? 0;
-        $total = $hits + $inserts;
-
-        $metrics['query_cache_hit_ratio'] = $total > 0 ? round(($hits / $total) * 100, 2) : 0;
-
-        // Database size
-        $dbSize = DB::selectOne('
-            SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS size_mb
-            FROM information_schema.tables 
-            WHERE table_schema = DATABASE()
-        ');
-        $metrics['database_size_mb'] = $dbSize->size_mb ?? 0;
-
-        return $metrics;
-    }
-
-    /**
-     * Clear query cache for tenant
-     */
-    public function clearQueryCache(): bool
+    public function cleanupOldSecurityEvents(int $days = 90): int
     {
         try {
-            $connection = DB::connection();
-            $driver = $connection->getDriverName();
+            $cutoffDate = now()->subDays($days);
+            
+            $deleted = DB::connection('pgsql')
+                ->table('security_events')
+                ->where('created_at', '<', $cutoffDate)
+                ->delete();
 
-            switch ($driver) {
-                case 'pgsql':
-                    DB::statement('DISCARD PLANS');
-                    break;
-                case 'mysql':
-                    DB::statement('RESET QUERY CACHE');
-                    break;
-            }
+            Log::info('Cleaned up old security events', [
+                'deleted_count' => $deleted,
+                'cutoff_date' => $cutoffDate->toISOString(),
+            ]);
 
-            return true;
+            return $deleted;
         } catch (\Exception $e) {
-            Log::error('Failed to clear query cache', [
+            Log::error('Failed to cleanup old security events', [
                 'error' => $e->getMessage(),
             ]);
 
-            return false;
+            return 0;
+        }
+    }
+
+    /**
+     * Analyze query performance
+     */
+    public function analyzeQueryPerformance(): array
+    {
+        try {
+            $slowQueries = DB::connection('pgsql')->select("
+                SELECT 
+                    query,
+                    calls,
+                    total_time,
+                    mean_time,
+                    rows
+                FROM pg_stat_statements 
+                WHERE mean_time > 1000 
+                ORDER BY mean_time DESC 
+                LIMIT 10
+            ");
+
+            return [
+                'slow_queries' => $slowQueries,
+                'timestamp' => now()->toISOString(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to analyze query performance', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'error' => 'Failed to analyze performance',
+                'timestamp' => now()->toISOString(),
+            ];
         }
     }
 }

@@ -44,38 +44,12 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
     /**
      * Get the database connection for the model.
      *
-     * @return \Illuminate\Database\Connection
+     * IMPORTANT: Always use the framework's current default connection.
+     * The HybridTenantDatabaseMiddleware/DatabaseConnectionManager are
+     * responsible for switching connections per-request.
      */
     public function getConnection()
     {
-        // Use tenant connection if available
-        if (request()->has('tenant_id')) {
-            $tenantId = request()->get('tenant_id');
-            $service = request()->get('service_name');
-
-            // Auto-detect service if not provided
-            if (! $service) {
-                $service = $this->detectServiceFromEnvironment();
-            }
-
-            // Try service-specific connection first
-            $connectionName = "tenant_{$tenantId}_{$service}";
-            if (config("database.connections.{$connectionName}")) {
-                return static::resolveConnection($connectionName);
-            }
-
-            // If connection doesn't exist, try to configure it
-            if ($this->configureTenantConnection($tenantId, $service)) {
-                return static::resolveConnection($connectionName);
-            }
-
-            // Fallback to generic tenant connection
-            $connectionName = "tenant_{$tenantId}";
-            if (config("database.connections.{$connectionName}")) {
-                return static::resolveConnection($connectionName);
-            }
-        }
-
         return parent::getConnection();
     }
 

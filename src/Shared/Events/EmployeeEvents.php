@@ -2,6 +2,67 @@
 
 namespace Shared\Events;
 
+// Employee Events
+class EmployeeCreated extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.employee.created'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+class EmployeeUpdated extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.employee.updated'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+class EmployeeDeleted extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.employee.deleted'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+// Department Events
+class DepartmentCreated extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.department.created'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+class DepartmentUpdated extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.department.updated'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+class DepartmentDeleted extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.department.deleted'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+// Branch Events
+class BranchCreated extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.branch.created'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+class BranchUpdated extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.branch.updated'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+class BranchDeleted extends BaseEvent
+{
+    protected function getEventType(): string { return 'employee.branch.deleted'; }
+    protected function getServiceName(): string { return 'employee'; }
+}
+
+<?php
+
+namespace Shared\Events;
+
 use Shared\Contracts\EventInterface;
 
 class EmployeeCreatedEvent implements EventInterface

@@ -2,8 +2,67 @@
 
 namespace Shared\Events;
 
+use Shared\Events\BaseEvent;
 use Shared\Contracts\EventInterface;
 
+// User Events
+class UserCreated extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.user.created'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+class UserUpdated extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.user.updated'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+class UserDeleted extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.user.deleted'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+// Role Events
+class RoleCreated extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.role.created'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+class RoleUpdated extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.role.updated'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+class RoleDeleted extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.role.deleted'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+// Permission Events
+class PermissionCreated extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.permission.created'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+class PermissionUpdated extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.permission.updated'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+class PermissionDeleted extends BaseEvent
+{
+    protected function getEventType(): string { return 'identity.permission.deleted'; }
+    protected function getServiceName(): string { return 'identity'; }
+}
+
+// Tenant Events
 class TenantCreatedEvent implements EventInterface
 {
     public function __construct(private array $tenantData) {}

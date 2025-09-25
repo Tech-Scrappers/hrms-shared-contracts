@@ -3,13 +3,13 @@
 namespace Shared\Events;
 
 /**
- * Attendance Events
+ * Shift Template Events
  */
-class AttendanceCheckIn extends BaseEvent
+class ShiftTemplateCreated extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'attendance.check_in';
+        return 'shift.template.created';
     }
 
     protected function getServiceName(): string
@@ -18,11 +18,11 @@ class AttendanceCheckIn extends BaseEvent
     }
 }
 
-class AttendanceCheckOut extends BaseEvent
+class ShiftTemplateUpdated extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'attendance.check_out';
+        return 'shift.template.updated';
     }
 
     protected function getServiceName(): string
@@ -31,24 +31,11 @@ class AttendanceCheckOut extends BaseEvent
     }
 }
 
-class AttendanceBreakStart extends BaseEvent
+class ShiftTemplateDeleted extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'attendance.break_start';
-    }
-
-    protected function getServiceName(): string
-    {
-        return 'core';
-    }
-}
-
-class AttendanceBreakEnd extends BaseEvent
-{
-    protected function getEventType(): string
-    {
-        return 'attendance.break_end';
+        return 'shift.template.deleted';
     }
 
     protected function getServiceName(): string
@@ -58,13 +45,13 @@ class AttendanceBreakEnd extends BaseEvent
 }
 
 /**
- * Manual Entry Request Events
+ * Shift Schedule Events
  */
-class ManualEntryRequestCreated extends BaseEvent
+class ShiftScheduleCreated extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'manual_entry.request_created';
+        return 'shift.schedule.created';
     }
 
     protected function getServiceName(): string
@@ -73,11 +60,11 @@ class ManualEntryRequestCreated extends BaseEvent
     }
 }
 
-class ManualEntryRequestApproved extends BaseEvent
+class ShiftScheduleUpdated extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'manual_entry.request_approved';
+        return 'shift.schedule.updated';
     }
 
     protected function getServiceName(): string
@@ -86,11 +73,11 @@ class ManualEntryRequestApproved extends BaseEvent
     }
 }
 
-class ManualEntryRequestRejected extends BaseEvent
+class ShiftScheduleDeleted extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'manual_entry.request_rejected';
+        return 'shift.schedule.deleted';
     }
 
     protected function getServiceName(): string
@@ -99,11 +86,14 @@ class ManualEntryRequestRejected extends BaseEvent
     }
 }
 
-class ManualEntryRequestUpdated extends BaseEvent
+/**
+ * Employee Shift Events
+ */
+class EmployeeShiftAssigned extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'manual_entry.request_updated';
+        return 'employee.shift.assigned';
     }
 
     protected function getServiceName(): string
@@ -112,11 +102,37 @@ class ManualEntryRequestUpdated extends BaseEvent
     }
 }
 
-class ManualEntryRequestDeleted extends BaseEvent
+class EmployeeShiftUpdated extends BaseEvent
 {
     protected function getEventType(): string
     {
-        return 'manual_entry.request_deleted';
+        return 'employee.shift.updated';
+    }
+
+    protected function getServiceName(): string
+    {
+        return 'core';
+    }
+}
+
+class EmployeeShiftCancelled extends BaseEvent
+{
+    protected function getEventType(): string
+    {
+        return 'employee.shift.cancelled';
+    }
+
+    protected function getServiceName(): string
+    {
+        return 'core';
+    }
+}
+
+class EmployeeShiftSwapped extends BaseEvent
+{
+    protected function getEventType(): string
+    {
+        return 'employee.shift.swapped';
     }
 
     protected function getServiceName(): string

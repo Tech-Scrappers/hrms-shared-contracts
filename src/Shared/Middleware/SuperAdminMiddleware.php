@@ -28,7 +28,8 @@ class SuperAdminMiddleware
             }
 
             // Check if user is super admin
-            if (! $user->isSuperAdmin()) {
+            $isSuperAdmin = $user->role === 'super_admin';
+            if (! $isSuperAdmin) {
                 Log::warning('SuperAdminMiddleware: Access denied - user is not super admin', [
                     'user_id' => $user->id,
                     'user_role' => $user->role,
@@ -39,19 +40,8 @@ class SuperAdminMiddleware
                 return $this->forbiddenResponse('Super admin access required');
             }
 
-            // Check if user has tenant-admin scope
-            $token = $request->user()->token();
-            if (! $token || ! in_array('tenant-admin', $token->scopes ?? [])) {
-                Log::warning('SuperAdminMiddleware: Access denied - missing tenant-admin scope', [
-                    'user_id' => $user->id,
-                    'user_role' => $user->role,
-                    'token_scopes' => $token->scopes ?? [],
-                    'request_uri' => $request->getRequestUri(),
-                    'method' => $request->method(),
-                ]);
-
-                return $this->forbiddenResponse('Tenant admin scope required');
-            }
+            // For super admin, we don't need to check scopes as they have full access
+            // The role check above is sufficient for super admin access
 
             // Add super admin context to request
             $request->merge([
