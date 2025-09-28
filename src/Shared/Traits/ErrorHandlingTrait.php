@@ -8,18 +8,19 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Database\QueryException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Exception;
+use Throwable;
 
 trait ErrorHandlingTrait
 {
     /**
      * Handle exceptions and return appropriate JSON response
      *
-     * @param Exception $e
+     * @param Throwable $e
      * @param string $context
      * @param array $additionalData
      * @return JsonResponse
      */
-    protected function handleException(Exception $e, string $context = 'Operation', array $additionalData = []): JsonResponse
+    protected function handleException(Throwable $e, string $context = 'Operation', array $additionalData = []): JsonResponse
     {
         $logData = array_merge([
             'error' => $e->getMessage(),
@@ -50,7 +51,7 @@ trait ErrorHandlingTrait
             return $this->badRequestResponse($e->getMessage());
         }
 
-        // Generic exception
+        // Generic exception/throwable
         Log::error("Unexpected error in {$context}", $logData);
         return $this->serverErrorResponse('An unexpected error occurred');
     }

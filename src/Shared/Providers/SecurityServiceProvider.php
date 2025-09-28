@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Shared\Middleware\CsrfProtectionMiddleware;
 use Shared\Middleware\EnhancedRateLimitMiddleware;
+use Shared\Middleware\EnvironmentAwareCorsMiddleware;
 use Shared\Middleware\InputValidationMiddleware;
 use Shared\Middleware\JsonResponseMiddleware;
 use Shared\Middleware\PayloadSizeLimitMiddleware;
@@ -51,6 +52,7 @@ class SecurityServiceProvider extends ServiceProvider
         // Register global middleware
         $this->app->middleware([
             SecurityHeadersMiddleware::class,
+            EnvironmentAwareCorsMiddleware::class,
         ]);
 
         // Register route middleware
@@ -59,9 +61,11 @@ class SecurityServiceProvider extends ServiceProvider
         $this->app->alias(InputValidationMiddleware::class, 'input.validation');
         $this->app->alias(JsonResponseMiddleware::class, 'json.response');
         $this->app->alias(PayloadSizeLimitMiddleware::class, 'payload.size.limit');
+        $this->app->alias(EnvironmentAwareCorsMiddleware::class, 'cors');
 
         // Register middleware groups
         $this->app->middlewareGroup('api', [
+            'cors',
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             JsonResponseMiddleware::class,
@@ -82,6 +86,7 @@ class SecurityServiceProvider extends ServiceProvider
         ]);
 
         $this->app->middlewareGroup('secure', [
+            'cors',
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             EnhancedRateLimitMiddleware::class,
