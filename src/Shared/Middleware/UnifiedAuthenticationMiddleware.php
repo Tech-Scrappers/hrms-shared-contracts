@@ -238,6 +238,12 @@ class UnifiedAuthenticationMiddleware
         }
 
         $identityServiceUrl = Config::get('services.identity_service.url');
+        Log::info('Token validation debug', [
+            'service_name' => config('app.service_name'),
+            'identity_service_url' => $identityServiceUrl,
+            'token_preview' => substr($token, 0, 20) . '...',
+        ]);
+        
         if (! $identityServiceUrl) {
             Log::error('IDENTITY_SERVICE_URL is not configured.');
 
@@ -250,8 +256,18 @@ class UnifiedAuthenticationMiddleware
                 'Authorization' => 'Bearer '.$token,
             ])->post($identityServiceUrl.'/api/v1/auth/validate-token');
 
+            Log::info('Token validation HTTP response', [
+                'status' => $response->status(),
+                'successful' => $response->successful(),
+                'response_body' => $response->body(),
+            ]);
+
             if ($response->successful()) {
-                return $response->json('data.user');
+                $userData = $response->json('data.user');
+                Log::info('Token validation successful', [
+                    'user_data' => $userData,
+                ]);
+                return $userData;
             }
 
             Log::warning('Token validation failed', [

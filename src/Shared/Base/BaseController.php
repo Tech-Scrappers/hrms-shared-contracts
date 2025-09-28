@@ -24,7 +24,7 @@ abstract class BaseController implements TenantAwareInterface
      */
     protected function error(string $message = 'Error', $errors = null, int $statusCode = 400): JsonResponse
     {
-        return $this->errorResponse($message, $statusCode, null, 'client_error', $errors);
+        return $this->errorResponse($message, $statusCode, null, 'client_error', $errors ?? []);
     }
 
     /**
