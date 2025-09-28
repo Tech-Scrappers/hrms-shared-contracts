@@ -17,7 +17,7 @@ trait TenantAwareTrait
         if (request()->has('tenant_id')) {
             $this->tenantId = request()->get('tenant_id');
 
-            return $this->tenantId;
+            return $this->tenantId ?? '';
         }
 
         return '';
