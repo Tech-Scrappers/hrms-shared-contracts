@@ -32,8 +32,8 @@ class SecurityHeadersMiddleware
         // Prevent clickjacking
         $response->headers->set('X-Frame-Options', 'DENY');
 
-        // XSS Protection (legacy but still useful for older browsers)
-        $response->headers->set('X-XSS-Protection', '1; mode=block');
+        // XSS Protection (deprecated - CSP handles this better)
+        // $response->headers->set('X-XSS-Protection', '1; mode=block');
 
         // Strict Transport Security (HTTPS only)
         $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
