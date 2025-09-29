@@ -123,9 +123,15 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
             return 'identity';
         }
 
-        // Check environment variable
+        // Prefer configured service name for consistency with cached config
+        $configured = config('app.service_name');
+        if (!empty($configured)) {
+            return $configured;
+        }
+
+        // Fallback: check environment variable
         $service = env('SERVICE_NAME');
-        if ($service) {
+        if (!empty($service)) {
             return $service;
         }
 

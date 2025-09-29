@@ -79,6 +79,11 @@ class HybridTenantDatabaseMiddleware
             // Add tenant to request attributes for easy access
             $request->attributes->set('tenant', $tenant);
             $request->attributes->set('service', $currentService);
+            
+            // CRITICAL: Make tenant_id available in request data for TenantAwareModel
+            $request->merge(['tenant_id' => $actualTenantId]);
+            $request->merge(['tenant_domain' => $tenant['domain']]);
+            $request->merge(['tenant_name' => $tenant['name']]);
 
             $response = $next($request);
 

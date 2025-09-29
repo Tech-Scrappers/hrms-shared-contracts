@@ -35,7 +35,9 @@ class HybridDatabaseService
      */
     private function detectCurrentService(): string
     {
-        $serviceName = env('SERVICE_NAME', 'identity');
+        // Prefer app config (supports cached configuration); fallback to env for dev
+        $configured = \Illuminate\Support\Facades\Config::get('app.service_name');
+        $serviceName = $configured ?: env('SERVICE_NAME', 'identity-service');
 
         return match ($serviceName) {
             'identity-service' => self::IDENTITY_SERVICE,
@@ -448,7 +450,7 @@ class HybridDatabaseService
      */
     private function cleanupTenantDatabases(array $tenant): void
     {
-        $services = [self::IDENTITY_SERVICE, self::EMPLOYEE_SERVICE, self::ATTENDANCE_SERVICE];
+        $services = [self::IDENTITY_SERVICE, self::EMPLOYEE_SERVICE, self::CORE_SERVICE];
 
         foreach ($services as $service) {
             try {
@@ -468,7 +470,7 @@ class HybridDatabaseService
      */
     public function getAllServices(): array
     {
-        return [self::IDENTITY_SERVICE, self::EMPLOYEE_SERVICE, self::ATTENDANCE_SERVICE];
+        return [self::IDENTITY_SERVICE, self::EMPLOYEE_SERVICE, self::CORE_SERVICE];
     }
 
     /**
