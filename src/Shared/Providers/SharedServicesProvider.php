@@ -5,6 +5,7 @@ namespace Shared\Providers;
 use Illuminate\Support\ServiceProvider;
 use Shared\Services\ApiKeyService;
 use Shared\Services\HybridDatabaseService;
+use Shared\Services\ReadReplicaService;
 use Shared\Services\TenantDatabaseService;
 
 class SharedServicesProvider extends ServiceProvider
@@ -32,6 +33,11 @@ class SharedServicesProvider extends ServiceProvider
                 return new HybridDatabaseService;
             });
         }
+
+        // Register ReadReplicaService
+        $this->app->singleton(ReadReplicaService::class, function ($app) {
+            return new ReadReplicaService;
+        });
     }
 
     /**

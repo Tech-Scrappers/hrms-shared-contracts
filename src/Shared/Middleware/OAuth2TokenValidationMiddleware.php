@@ -29,7 +29,7 @@ class OAuth2TokenValidationMiddleware
 
             \Log::info('OAuth2 Token Validation Debug', [
                 'authorization_header' => $request->header('Authorization'),
-                'extracted_token' => $token ? substr($token, 0, 20).'...' : 'null',
+                'has_token' => $token ? 'yes' : 'no',
                 'all_headers' => $request->headers->all(),
             ]);
 
@@ -118,7 +118,7 @@ class OAuth2TokenValidationMiddleware
         } catch (\Exception $e) {
             Log::error('Error validating token with identity service', [
                 'error' => $e->getMessage(),
-                'token_prefix' => substr($token, 0, 20).'...',
+                'endpoint' => $request->path(),
             ]);
 
             return null;

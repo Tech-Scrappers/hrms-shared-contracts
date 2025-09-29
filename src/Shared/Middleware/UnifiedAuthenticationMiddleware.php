@@ -154,16 +154,18 @@ class UnifiedAuthenticationMiddleware
             $token = Str::substr($authHeader, 7);
 
             Log::info('OAuth2 authentication attempt', [
-                'token_preview' => substr($token, 0, 20) . '...',
                 'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'endpoint' => $request->path(),
             ]);
 
             // Validate token with identity service
             $user = $this->validateTokenWithIdentityService($token);
             if (! $user) {
                 Log::warning('OAuth2 authentication failed: Invalid or expired token', [
-                    'token_preview' => substr($token, 0, 20) . '...',
                     'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'endpoint' => $request->path(),
                 ]);
                 return $this->unauthorizedResponse('Invalid or expired token');
             }
@@ -241,7 +243,6 @@ class UnifiedAuthenticationMiddleware
         Log::info('Token validation debug', [
             'service_name' => config('app.service_name'),
             'identity_service_url' => $identityServiceUrl,
-            'token_preview' => substr($token, 0, 20) . '...',
         ]);
         
         if (! $identityServiceUrl) {
@@ -292,9 +293,7 @@ class UnifiedAuthenticationMiddleware
             // Decode JWT to get the JTI (token ID)
             $payload = $this->decodeJwtPayload($token);
             if (! $payload || ! isset($payload['jti'])) {
-                Log::warning('OAuth2 token validation failed: Invalid JWT payload', [
-                    'token_preview' => substr($token, 0, 20) . '...',
-                ]);
+                Log::warning('OAuth2 token validation failed: Invalid JWT payload');
                 return null;
             }
 
@@ -348,7 +347,6 @@ class UnifiedAuthenticationMiddleware
         } catch (\Exception $e) {
             Log::error('Error validating token locally: '.$e->getMessage(), [
                 'exception' => $e,
-                'token_preview' => substr($token, 0, 20) . '...',
             ]);
 
             return null;

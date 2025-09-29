@@ -4,8 +4,11 @@ namespace Shared\Providers;
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Shared\Middleware\CircuitBreakerMiddleware;
 use Shared\Middleware\CsrfProtectionMiddleware;
+use Shared\Middleware\DistributedTracingMiddleware;
 use Shared\Middleware\EnhancedRateLimitMiddleware;
+use Shared\Middleware\EndpointSpecificRateLimitMiddleware;
 use Shared\Middleware\EnvironmentAwareCorsMiddleware;
 use Shared\Middleware\InputValidationMiddleware;
 use Shared\Middleware\JsonResponseMiddleware;
@@ -51,13 +54,17 @@ class SecurityServiceProvider extends ServiceProvider
     {
         // Register global middleware
         $this->app->middleware([
+            DistributedTracingMiddleware::class,
             SecurityHeadersMiddleware::class,
             EnvironmentAwareCorsMiddleware::class,
         ]);
 
         // Register route middleware
+        $this->app->alias(CircuitBreakerMiddleware::class, 'circuit.breaker');
         $this->app->alias(CsrfProtectionMiddleware::class, 'csrf.protection');
+        $this->app->alias(DistributedTracingMiddleware::class, 'tracing');
         $this->app->alias(EnhancedRateLimitMiddleware::class, 'rate.limit');
+        $this->app->alias(EndpointSpecificRateLimitMiddleware::class, 'endpoint.rate.limit');
         $this->app->alias(InputValidationMiddleware::class, 'input.validation');
         $this->app->alias(JsonResponseMiddleware::class, 'json.response');
         $this->app->alias(PayloadSizeLimitMiddleware::class, 'payload.size.limit');
@@ -70,7 +77,7 @@ class SecurityServiceProvider extends ServiceProvider
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             JsonResponseMiddleware::class,
             PayloadSizeLimitMiddleware::class,
-            EnhancedRateLimitMiddleware::class,
+            'endpoint.rate.limit',
             InputValidationMiddleware::class,
         ]);
 
