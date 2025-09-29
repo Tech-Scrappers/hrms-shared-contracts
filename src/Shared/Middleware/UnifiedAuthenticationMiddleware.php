@@ -13,7 +13,6 @@ use Illuminate\Support\Str;
 use Shared\Services\ApiKeyService;
 use Shared\Services\HybridDatabaseService;
 use Shared\Services\SecurityService;
-use Shared\Services\DatabaseOptimizationService;
 
 class UnifiedAuthenticationMiddleware
 {
@@ -23,18 +22,14 @@ class UnifiedAuthenticationMiddleware
 
     protected $securityService;
 
-    protected $databaseOptimizationService;
-
     public function __construct(
         ApiKeyService $apiKeyService, 
         HybridDatabaseService $hybridDatabaseService,
-        SecurityService $securityService,
-        DatabaseOptimizationService $databaseOptimizationService
+        SecurityService $securityService
     ) {
         $this->apiKeyService = $apiKeyService;
         $this->hybridDatabaseService = $hybridDatabaseService;
         $this->securityService = $securityService;
-        $this->databaseOptimizationService = $databaseOptimizationService;
     }
 
     /**
@@ -104,7 +99,7 @@ class UnifiedAuthenticationMiddleware
             $tenantId = $apiKeyData['tenant_id'];
 
             // Get tenant information from database (with caching)
-            $tenant = $this->databaseOptimizationService->getCachedTenant($tenantId);
+            $tenant = DB::connection('pgsql')->table('tenants')->where('id', $tenantId)->first();
 
             $request->merge([
                 'tenant_id' => $tenantId,
@@ -434,7 +429,7 @@ class UnifiedAuthenticationMiddleware
         }
 
         // Get tenant domain from database using tenant ID (with caching)
-        $tenant = $this->databaseOptimizationService->getCachedTenant($user['tenant_id']);
+        $tenant = DB::connection('pgsql')->table('tenants')->where('id', $user['tenant_id'])->first();
 
         if (! $tenant) {
             Log::warning('OAuth2 authentication: Tenant not found or inactive', [

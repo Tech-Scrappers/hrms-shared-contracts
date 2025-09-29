@@ -5,7 +5,6 @@ namespace Shared\Providers;
 use Illuminate\Support\ServiceProvider;
 use Shared\Middleware\HybridTenantDatabaseMiddleware;
 use Shared\Services\HybridDatabaseService;
-use Shared\Services\HybridMigrationService;
 
 class HybridDatabaseServiceProvider extends ServiceProvider
 {
@@ -19,10 +18,6 @@ class HybridDatabaseServiceProvider extends ServiceProvider
             return new HybridDatabaseService;
         });
 
-        // Register hybrid migration service
-        $this->app->singleton(HybridMigrationService::class, function ($app) {
-            return new HybridMigrationService;
-        });
 
         // Register hybrid tenant database middleware
         $this->app->singleton(HybridTenantDatabaseMiddleware::class, function ($app) {
@@ -59,7 +54,6 @@ class HybridDatabaseServiceProvider extends ServiceProvider
     {
         return [
             HybridDatabaseService::class,
-            HybridMigrationService::class,
             HybridTenantDatabaseMiddleware::class,
         ];
     }
