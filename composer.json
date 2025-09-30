@@ -24,7 +24,8 @@
     },
     "autoload": {
         "psr-4": {
-            "Hrms\\Shared\\": "src/"
+            "Hrms\\Shared\\": "src/",
+            "Shared\\": "src/Shared/"
         }
     },
     "autoload-dev": {
