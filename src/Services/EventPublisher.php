@@ -105,6 +105,7 @@ class EventPublisher
         }
     }
 
+
     /**
      * Publish event to external webhook
      */
@@ -175,19 +176,42 @@ class EventPublisher
     }
 
     /**
-     * Publish event to both SQS and external webhooks
+     * Publish event using the configured driver (SQS by default)
      */
     public function publish(BaseEvent $event): bool
     {
-        $sqsSuccess = $this->publishToSqs($event);
-        $webhookSuccess = $this->publishToWebhook($event);
-
-        // Store event for retry if either failed
-        if (!$sqsSuccess || !$webhookSuccess) {
-            $this->storeForRetry($event);
+        $driver = config('events.driver', 'sqs');
+        
+        switch ($driver) {
+            case 'sqs':
+                return $this->publishToSqs($event);
+            case 'webhook':
+                return $this->publishToWebhook($event);
+            case 'both':
+                $sqsSuccess = $this->publishToSqs($event);
+                $webhookSuccess = $this->publishToWebhook($event);
+                
+                // Store event for retry if either failed
+                if (!$sqsSuccess || !$webhookSuccess) {
+                    $this->storeForRetry($event);
+                }
+                
+                return $sqsSuccess && $webhookSuccess;
+            default:
+                Log::warning('Unknown event driver, falling back to SQS', [
+                    'driver' => $driver,
+                    'event_type' => $event->eventType,
+                ]);
+                return $this->publishToSqs($event);
         }
+    }
 
-        return $sqsSuccess && $webhookSuccess;
+    /**
+     * Publish event to SQS only (for internal service communication)
+     */
+    public function publishToSqsOnly(BaseEvent $event): bool
+    {
+        return $this->publishToSqs($event);
     }
 
     /**

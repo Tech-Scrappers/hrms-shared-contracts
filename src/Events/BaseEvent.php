@@ -65,7 +65,10 @@ abstract class BaseEvent
      */
     public function getQueueName(): string
     {
-        return "hrms-{$this->getServiceName()}-events";
+        $serviceName = $this->getServiceName();
+        $queuePrefix = config('events.queue_prefix', 'hrms');
+        
+        return "{$queuePrefix}-{$serviceName}-events.fifo";
     }
 
     /**
@@ -78,6 +81,14 @@ abstract class BaseEvent
         $accountId = config('aws.account_id');
         
         return "https://sqs.{$region}.amazonaws.com/{$accountId}/{$queueName}";
+    }
+
+    /**
+     * Get the event payload
+     */
+    public function getPayload(): array
+    {
+        return $this->payload;
     }
 
     /**

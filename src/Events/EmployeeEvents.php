@@ -59,9 +59,7 @@ class BranchDeleted extends BaseEvent
     protected function getServiceName(): string { return 'employee'; }
 }
 
-<?php
-
-namespace Shared\Events;
+// Additional event classes
 
 use Shared\Contracts\EventInterface;
 
@@ -78,6 +76,11 @@ class EmployeeCreatedEvent implements EventInterface
     {
         return $this->employeeData;
     }
+
+    public function getTenantId(): ?string
+    {
+        return $this->employeeData['tenant_id'] ?? null;
+    }
 }
 
 class EmployeeUpdatedEvent implements EventInterface
@@ -92,6 +95,11 @@ class EmployeeUpdatedEvent implements EventInterface
     public function getPayload(): array
     {
         return $this->employeeData;
+    }
+
+    public function getTenantId(): ?string
+    {
+        return $this->employeeData['tenant_id'] ?? null;
     }
 }
 
@@ -108,6 +116,11 @@ class EmployeeDeletedEvent implements EventInterface
     {
         return $this->employeeData;
     }
+
+    public function getTenantId(): ?string
+    {
+        return $this->employeeData['tenant_id'] ?? null;
+    }
 }
 
 class EmployeeStatusChangedEvent implements EventInterface
@@ -122,6 +135,11 @@ class EmployeeStatusChangedEvent implements EventInterface
     public function getPayload(): array
     {
         return $this->employeeData;
+    }
+
+    public function getTenantId(): ?string
+    {
+        return $this->employeeData['tenant_id'] ?? null;
     }
 }
 
@@ -138,6 +156,11 @@ class DepartmentCreatedEvent implements EventInterface
     {
         return $this->departmentData;
     }
+
+    public function getTenantId(): ?string
+    {
+        return $this->departmentData['tenant_id'] ?? null;
+    }
 }
 
 class DepartmentUpdatedEvent implements EventInterface
@@ -152,6 +175,11 @@ class DepartmentUpdatedEvent implements EventInterface
     public function getPayload(): array
     {
         return $this->departmentData;
+    }
+
+    public function getTenantId(): ?string
+    {
+        return $this->departmentData['tenant_id'] ?? null;
     }
 }
 
@@ -168,6 +196,11 @@ class DepartmentDeletedEvent implements EventInterface
     {
         return $this->departmentData;
     }
+
+    public function getTenantId(): ?string
+    {
+        return $this->departmentData['tenant_id'] ?? null;
+    }
 }
 
 class BranchCreatedEvent implements EventInterface
@@ -182,6 +215,11 @@ class BranchCreatedEvent implements EventInterface
     public function getPayload(): array
     {
         return $this->branchData;
+    }
+
+    public function getTenantId(): ?string
+    {
+        return $this->branchData['tenant_id'] ?? null;
     }
 }
 
@@ -198,6 +236,11 @@ class BranchUpdatedEvent implements EventInterface
     {
         return $this->branchData;
     }
+
+    public function getTenantId(): ?string
+    {
+        return $this->branchData['tenant_id'] ?? null;
+    }
 }
 
 class BranchDeletedEvent implements EventInterface
@@ -212,5 +255,10 @@ class BranchDeletedEvent implements EventInterface
     public function getPayload(): array
     {
         return $this->branchData;
+    }
+
+    public function getTenantId(): ?string
+    {
+        return $this->branchData['tenant_id'] ?? null;
     }
 }
