@@ -5,6 +5,8 @@
     "keywords": ["hrms", "shared", "microservices", "laravel", "middleware"],
     "license": "MIT",
     "version": "1.0.0",
+    "minimum-stability": "stable",
+    "prefer-stable": true,
     "authors": [
         {
             "name": "HRMS Team",
@@ -32,6 +34,13 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Shared\\Providers\\SharedContractsServiceProvider"
+            ]
         }
     },
     "scripts": {
