@@ -19,8 +19,6 @@
         "aws/aws-sdk-php": "^3.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.5.3",
-        "mockery/mockery": "^1.6",
         "laravel/pint": "^1.24"
     },
     "autoload": {
@@ -29,14 +27,7 @@
             "Shared\\": "src/"
         }
     },
-    "autoload-dev": {
-        "psr-4": {
-            "Tests\\": "tests/"
-        }
-    },
     "scripts": {
-        "test": "phpunit",
-        "test-coverage": "phpunit --coverage-html coverage",
         "cs-fix": "pint",
         "cs-check": "pint --test"
     },
