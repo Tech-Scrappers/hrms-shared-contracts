@@ -43,6 +43,28 @@ trait EnterpriseApiResponseTrait
     }
 
     /**
+     * Generate a standardized success response without data key
+     */
+    protected function successNoDataResponse(
+        string $message = 'Success',
+        int $statusCode = 200,
+        array $meta = []
+    ): JsonResponse {
+        $response = [
+            'status' => $statusCode,
+            'message' => $message,
+            'meta' => array_merge([
+                'timestamp' => now()->toISOString(),
+                'request_id' => $this->getRequestId(),
+                'version' => 'v1',
+                'execution_time_ms' => $this->getExecutionTime(),
+            ], $meta),
+        ];
+
+        return response()->json($response, $statusCode);
+    }
+
+    /**
      * Generate a standardized created response (201)
      */
     protected function createdResponse(
@@ -65,6 +87,31 @@ trait EnterpriseApiResponseTrait
             'status' => 201,
             'message' => $message,
             'data' => $data,
+            'meta' => $meta,
+        ], 201);
+    }
+
+    /**
+     * Generate a standardized created response (201) without data key
+     */
+    protected function createdNoDataResponse(
+        string $message = 'Resource created successfully',
+        ?string $location = null
+    ): JsonResponse {
+        $meta = [
+            'timestamp' => now()->toISOString(),
+            'request_id' => $this->getRequestId(),
+            'version' => 'v1',
+            'execution_time_ms' => $this->getExecutionTime(),
+        ];
+
+        if ($location) {
+            $meta['location'] = $location;
+        }
+
+        return response()->json([
+            'status' => 201,
+            'message' => $message,
             'meta' => $meta,
         ], 201);
     }

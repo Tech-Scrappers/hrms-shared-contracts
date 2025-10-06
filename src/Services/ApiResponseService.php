@@ -41,6 +41,17 @@ class ApiResponseService
     }
 
     /**
+     * Create a success response without data key
+     */
+    public function successNoData(
+        string $message = 'Success',
+        int $statusCode = 200,
+        array $meta = []
+    ): JsonResponse {
+        return $this->successNoDataResponse($message, $statusCode, $meta);
+    }
+
+    /**
      * Create a created response (201)
      */
     public function created(
@@ -49,6 +60,16 @@ class ApiResponseService
         ?string $location = null
     ): JsonResponse {
         return $this->createdResponse($data, $message, $location);
+    }
+
+    /**
+     * Create a created response (201) without data key
+     */
+    public function createdNoData(
+        string $message = 'Resource created successfully',
+        ?string $location = null
+    ): JsonResponse {
+        return $this->createdNoDataResponse($message, $location);
     }
 
     /**
