@@ -4,7 +4,7 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 
 ## 📦 Package Contents
 
-### 🔒 Middleware (17 Components)
+### 🔒 Middleware (22 Components)
 **Authentication & Authorization:**
 - **UnifiedAuthenticationMiddleware**: Unified OAuth2 and API key authentication with tenant context
 - **OAuth2TokenValidationMiddleware**: OAuth2 token validation and user context extraction
@@ -18,6 +18,7 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **InputValidationMiddleware**: XSS and injection prevention with request sanitization
 - **CsrfProtectionMiddleware**: CSRF token validation and protection
 - **PayloadSizeLimitMiddleware**: Request payload size validation
+- **BruteForceProtectionMiddleware**: Brute force attack prevention
 
 **Rate Limiting & Performance:**
 - **EnterpriseRateLimitMiddleware**: Advanced enterprise rate limiting
@@ -36,7 +37,7 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **StructuredLoggingMiddleware**: Structured request/response logging
 - **EnvironmentAwareCorsMiddleware**: Environment-aware CORS handling
 
-### 🛠️ Services (8 Components)
+### 🛠️ Services (12 Components)
 **Database & Multi-tenancy:**
 - **HybridDatabaseService**: Database-per-service + Database-per-tenant management with automatic provisioning
 - **TenantDatabaseService**: Tenant database lifecycle management
@@ -52,7 +53,12 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **SecurityAuditService**: Security audit and compliance reporting
 - **SecurityService**: Core security utilities and validation
 
-### 📡 Events System (20+ Event Types)
+**Messaging & Caching:**
+- **QueryCacheService**: Database query result caching
+- **OutboxDispatcher**: Outbox pattern implementation for reliable messaging
+- **OutboxEnqueuer**: Event enqueueing for outbox pattern
+
+### 📡 Events System (25+ Event Types)
 **Event Infrastructure:**
 - **EventBus**: Redis-based event communication with retry mechanisms
 - **EventSubscriber**: Event subscription and handling system
@@ -83,6 +89,9 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 **Leave Events:**
 - **LeaveEvents**: Leave management related events
 
+**Approval Events:**
+- **ApprovalEvents**: Approval workflow events
+
 ### 🏗️ Base Classes & Utilities
 **Base Classes:**
 - **BaseController**: Abstract base controller with tenant awareness and standardized responses
@@ -107,6 +116,8 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **EventWorkerCommand**: Start event worker for processing events
 - **ProcessEventsCommand**: Process events from the event bus
 - **SecurityAuditCommand**: Run security audits
+- **SqsConsumerCommand**: SQS message consumer command
+- **DispatchOutboxCommand**: Dispatch outbox events command
 
 **Configuration Files:**
 - **security.php**: Security configuration (CSRF, rate limiting, etc.)
@@ -117,6 +128,20 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 **Helpers & Utilities:**
 - **UuidHelper**: UUID generation utilities
 - **ApiErrorCode**: Standardized API error codes enum
+- **InputSanitizer**: Input sanitization utilities
+- **ExternalDataTransformer**: External data transformation utilities
+- **ExternalEmployeeResolver**: External employee resolution utilities
+
+### 📨 Messaging Components
+**Message Processing:**
+- **MessageConsumer**: Generic message consumer interface
+- **MqttConsumer**: MQTT message consumer implementation
+- **MqttPublisher**: MQTT message publisher
+- **MqttLogger**: MQTT logging utilities
+- **SqsConsumer**: AWS SQS message consumer
+
+**Jobs & Queues:**
+- **PublishEventJob**: Event publishing job for queue processing
 
 ## 🚀 Installation
 
