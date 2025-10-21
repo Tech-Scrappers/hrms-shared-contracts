@@ -18,7 +18,7 @@ class OAuth2TokenValidationMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         try {
-            \Log::info('OAuth2 Token Validation Middleware Called', [
+            Log::info('OAuth2 Token Validation Middleware Called', [
                 'path' => $request->path(),
                 'method' => $request->method(),
                 'authorization_header' => $request->header('Authorization'),
@@ -27,7 +27,7 @@ class OAuth2TokenValidationMiddleware
             // Get the token from the Authorization header
             $token = $this->extractToken($request);
 
-            \Log::info('OAuth2 Token Validation Debug', [
+            Log::info('OAuth2 Token Validation Debug', [
                 'authorization_header' => $request->header('Authorization'),
                 'has_token' => $token ? 'yes' : 'no',
                 'all_headers' => $request->headers->all(),
@@ -93,7 +93,7 @@ class OAuth2TokenValidationMiddleware
     private function validateTokenWithIdentityService(string $token): ?array
     {
         try {
-            $identityServiceUrl = config('services.identity_service.url', 'http://localhost:8001');
+            $identityServiceUrl = config('services.identity_service.url', 'http://identity-service:8001');
 
             $response = Http::timeout(10)
                 ->withHeaders([
@@ -117,8 +117,7 @@ class OAuth2TokenValidationMiddleware
 
         } catch (\Exception $e) {
             Log::error('Error validating token with identity service', [
-                'error' => $e->getMessage(),
-                'endpoint' => $request->path(),
+                'error' => $e->getMessage()
             ]);
 
             return null;

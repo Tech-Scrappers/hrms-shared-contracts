@@ -19,7 +19,7 @@ class ExternalEmployeeResolver
 
     public function __construct()
     {
-        $this->employeeServiceUrl = rtrim(config('services.employee_service.url', 'http://localhost:8002'), '/');
+        $this->employeeServiceUrl = rtrim(config('services.employee_service.url', 'http://employee-service:8002'), '/');
         $this->timeout = config('services.employee_service.timeout', 30);
         $this->retryAttempts = config('services.employee_service.retry_attempts', 3);
     }
