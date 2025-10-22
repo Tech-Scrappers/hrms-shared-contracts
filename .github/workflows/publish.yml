@@ -1,0 +1,44 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, json, redis
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-dev
+
+      - name: Create GitHub Packages auth.json
+        run: |
+          mkdir -p ~/.composer
+          echo '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}' > ~/.composer/auth.json
+
+      - name: Publish package info
+        run: |
+          echo "📦 Publishing package: tech-scrappers/hrms-shared"
+          echo "🏷️ Version: $(git describe --tags --abbrev=0 2>/dev/null || echo 'latest')"
+          echo "✅ Package will be available at: https://github.com/Tech-Scrappers/hrms-shared-contracts/packages"

@@ -1,5 +1,5 @@
 {
-    "name": "hrms/shared",
+    "name": "tech-scrappers/hrms-shared",
     "type": "library",
     "description": "HRMS Shared Components Package - Middleware, Services, Events, and Utilities",
     "keywords": ["hrms", "shared", "microservices", "laravel", "middleware"],
@@ -36,6 +36,6 @@
             "php-http/discovery": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
