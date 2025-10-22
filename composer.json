@@ -1,6 +1,7 @@
 {
-    "name": "hrms/shared",
+    "name": "tech-scrappers/hrms-shared",
     "type": "library",
+    "version": "1.0.0",
     "description": "HRMS Shared Components Package - Middleware, Services, Events, and Utilities",
     "keywords": ["hrms", "shared", "microservices", "laravel", "middleware"],
     "license": "MIT",
@@ -36,6 +37,6 @@
             "php-http/discovery": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
