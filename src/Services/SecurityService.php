@@ -3,7 +3,6 @@
 namespace Shared\Services;
 
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -36,27 +35,28 @@ class SecurityService
     }
 
     /**
-     * Store security event in database
+     * Store security event via Identity Service API
      */
     private function storeSecurityEvent(array $logData): void
     {
         try {
-            DB::connection('pgsql')->table('security_events')->insert([
+            // Send to Identity Service via SecurityEventApiClient
+            // This is fire-and-forget to avoid blocking the main application flow
+            app(SecurityEventApiClient::class)->logSecurityEvent([
                 'event_type' => $logData['event_type'],
+                'tenant_id' => $logData['context']['tenant_id'] ?? null,
+                'user_id' => $logData['context']['user_id'] ?? null,
                 'ip_address' => $logData['ip_address'],
                 'user_agent' => $logData['user_agent'],
                 'request_uri' => $logData['request_uri'],
                 'request_method' => $logData['request_method'],
-                'context' => json_encode($logData['context']),
-                'additional_data' => json_encode($logData['additional_data'] ?? []),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'context' => $logData['context'],
+                'additional_data' => $logData['additional_data'] ?? [],
             ]);
         } catch (\Exception $e) {
-            // If database logging fails, just log to file
-            Log::error('Failed to store security event in database', [
-                'error' => $e->getMessage(),
-                'event_data' => $logData,
+            // Silently fail - SecurityEventApiClient already has fallback logging
+            Log::debug('Security event API client handled event', [
+                'event_type' => $logData['event_type'] ?? 'unknown',
             ]);
         }
     }
@@ -148,7 +148,7 @@ class SecurityService
     }
 
     /**
-     * Get security events for a tenant
+     * Get security events for a tenant via Identity Service API
      */
     public function getSecurityEvents(
         string $tenantId,
@@ -158,121 +158,39 @@ class SecurityService
         ?Carbon $fromDate = null,
         ?Carbon $toDate = null
     ): array {
-        $query = DB::connection('pgsql')
-            ->table('security_events')
-            ->where('context->tenant_id', $tenantId);
-
+        $filters = [
+            'limit' => $limit,
+            'offset' => $offset,
+        ];
+        
         if ($eventType) {
-            $query->where('event_type', $eventType);
+            $filters['event_type'] = $eventType;
         }
-
+        
         if ($fromDate) {
-            $query->where('created_at', '>=', $fromDate);
+            $filters['from_date'] = $fromDate->toISOString();
         }
-
+        
         if ($toDate) {
-            $query->where('created_at', '<=', $toDate);
+            $filters['to_date'] = $toDate->toISOString();
         }
-
-        return $query->orderBy('created_at', 'desc')
-                    ->limit($limit)
-                    ->offset($offset)
-                    ->get()
-                    ->toArray();
+        
+        return app(SecurityEventApiClient::class)->getSecurityEvents($tenantId, $filters);
     }
 
     /**
-     * Get security statistics for a tenant
+     * Get security statistics for a tenant via Identity Service API
      */
     public function getSecurityStatistics(string $tenantId, int $days = 30): array
     {
-        $fromDate = now()->subDays($days);
-
-        $stats = DB::connection('pgsql')
-            ->table('security_events')
-            ->where('context->tenant_id', $tenantId)
-            ->where('created_at', '>=', $fromDate)
-            ->selectRaw('
-                COUNT(*) as total_events,
-                COUNT(CASE WHEN event_type = ? THEN 1 END) as cross_tenant_attempts,
-                COUNT(CASE WHEN event_type = ? THEN 1 END) as permission_denied,
-                COUNT(CASE WHEN event_type = ? THEN 1 END) as suspicious_activity,
-                COUNT(CASE WHEN event_type = ? THEN 1 END) as api_key_events
-            ', [
-                'cross_tenant_access_attempt',
-                'permission_denied',
-                'suspicious_activity',
-                'api_key_cross_tenant_access_attempt'
-            ])
-            ->first();
-
-        return [
-            'total_events' => (int) $stats->total_events,
-            'cross_tenant_attempts' => (int) $stats->cross_tenant_attempts,
-            'permission_denied' => (int) $stats->permission_denied,
-            'suspicious_activity' => (int) $stats->suspicious_activity,
-            'api_key_events' => (int) $stats->api_key_events,
-            'period_days' => $days,
-        ];
+        return app(SecurityEventApiClient::class)->getSecurityStatistics($tenantId, $days);
     }
 
     /**
-     * Check for suspicious patterns
+     * Check for suspicious patterns via Identity Service API
      */
     public function checkSuspiciousPatterns(string $tenantId, int $hours = 24): array
     {
-        $fromTime = now()->subHours($hours);
-
-        // Check for multiple failed authentication attempts
-        $failedAuthAttempts = DB::connection('pgsql')
-            ->table('security_events')
-            ->where('context->tenant_id', $tenantId)
-            ->where('event_type', 'authentication_failed')
-            ->where('created_at', '>=', $fromTime)
-            ->count();
-
-        // Check for multiple cross-tenant access attempts
-        $crossTenantAttempts = DB::connection('pgsql')
-            ->table('security_events')
-            ->where('context->tenant_id', $tenantId)
-            ->where('event_type', 'cross_tenant_access_attempt')
-            ->where('created_at', '>=', $fromTime)
-            ->count();
-
-        // Check for multiple permission denied events
-        $permissionDenied = DB::connection('pgsql')
-            ->table('security_events')
-            ->where('context->tenant_id', $tenantId)
-            ->where('event_type', 'permission_denied')
-            ->where('created_at', '>=', $fromTime)
-            ->count();
-
-        $suspicious = [];
-
-        if ($failedAuthAttempts > 5) {
-            $suspicious[] = [
-                'type' => 'multiple_failed_auth',
-                'count' => $failedAuthAttempts,
-                'severity' => 'high',
-            ];
-        }
-
-        if ($crossTenantAttempts > 3) {
-            $suspicious[] = [
-                'type' => 'multiple_cross_tenant_attempts',
-                'count' => $crossTenantAttempts,
-                'severity' => 'critical',
-            ];
-        }
-
-        if ($permissionDenied > 10) {
-            $suspicious[] = [
-                'type' => 'multiple_permission_denied',
-                'count' => $permissionDenied,
-                'severity' => 'medium',
-            ];
-        }
-
-        return $suspicious;
+        return app(SecurityEventApiClient::class)->checkSuspiciousPatterns($tenantId, $hours);
     }
 }

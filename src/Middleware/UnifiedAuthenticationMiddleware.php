@@ -6,13 +6,13 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Shared\Services\ApiKeyService;
 use Shared\Services\DistributedDatabaseService;
 use Shared\Services\SecurityService;
+use Shared\Services\TenantApiClient;
 
 class UnifiedAuthenticationMiddleware
 {
@@ -98,12 +98,15 @@ class UnifiedAuthenticationMiddleware
             // Set tenant context
             $tenantId = $apiKeyData['tenant_id'];
 
-            // Get tenant information from database (with caching)
-            $tenant = DB::connection('pgsql')->table('tenants')->where('id', $tenantId)->first();
-
-            if (!$tenant) {
+            // Get tenant information from Identity Service API (with caching and circuit breaker)
+            $tenantArray = app(\Shared\Services\TenantApiClient::class)->getTenant($tenantId);
+            
+            if (!$tenantArray) {
                 return $this->unauthorizedResponse('Tenant not found or inactive');
             }
+            
+            // Convert array to object for backward compatibility
+            $tenant = (object) $tenantArray;
 
             // Set tenant context on request
             $request->merge([
@@ -112,9 +115,9 @@ class UnifiedAuthenticationMiddleware
                 'tenant_name' => $tenant->name,
             ]);
 
-            // Switch to tenant-specific database (Distributed Architecture)
-            // Each service connects to its own database instance
-            $this->distributedDatabaseService->switchToTenantDatabase($tenantId);
+            // NOTE: Database switching is handled by DistributedTenantDatabaseMiddleware
+            // which runs AFTER this middleware. Do NOT switch database here.
+            // The tenant.distributed middleware will handle the connection switch.
 
             // Set authenticated API key on request
             $request->merge(['api_key' => $apiKeyData]);
@@ -194,16 +197,15 @@ class UnifiedAuthenticationMiddleware
             } else {
                 $tenantId = $user['tenant_id'];
 
-                // Get tenant information from database
-                $tenant = DB::connection('pgsql')
-                    ->table('tenants')
-                    ->where('id', $tenantId)
-                    ->where('is_active', true)
-                    ->first();
+                // Get tenant information from Identity Service API
+                $tenantArray = app(\Shared\Services\TenantApiClient::class)->getTenant($tenantId);
 
-                if (!$tenant) {
+                if (!$tenantArray || !($tenantArray['is_active'] ?? false)) {
                     return $this->unauthorizedResponse('Tenant not found or inactive');
                 }
+                
+                // Convert array to object for backward compatibility
+                $tenant = (object) $tenantArray;
 
                 // Set tenant context on request
                 $request->merge([
@@ -212,9 +214,9 @@ class UnifiedAuthenticationMiddleware
                     'tenant_name' => $tenant->name ?? null,
                 ]);
                 
-                // Switch to tenant-specific database (Distributed Architecture)
-                // Each service connects to its own database instance
-                $this->distributedDatabaseService->switchToTenantDatabase($tenantId);
+                // NOTE: Database switching is handled by DistributedTenantDatabaseMiddleware
+                // which runs AFTER this middleware. Do NOT switch database here.
+                // The tenant.distributed middleware will handle the connection switch.
             }
 
             // Set auth_user in request for downstream middleware
@@ -444,10 +446,10 @@ class UnifiedAuthenticationMiddleware
             ];
         }
 
-        // Get tenant domain from database using tenant ID (with caching)
-        $tenant = DB::connection('pgsql')->table('tenants')->where('id', $user['tenant_id'])->first();
+        // Get tenant information from Identity Service API
+        $tenantArray = app(\Shared\Services\TenantApiClient::class)->getTenant($user['tenant_id']);
 
-        if (! $tenant) {
+        if (! $tenantArray) {
             Log::warning('OAuth2 authentication: Tenant not found or inactive', [
                 'user_id' => $user['id'] ?? 'N/A',
                 'tenant_id' => $user['tenant_id'],
@@ -459,6 +461,8 @@ class UnifiedAuthenticationMiddleware
                 'message' => 'Tenant not found or inactive',
             ];
         }
+        
+        $tenant = (object) $tenantArray;
 
         // CRITICAL: Validate HRMS-Client-ID header matches user's tenant_id
         $requestedTenantId = $request->header('HRMS-Client-ID');
@@ -519,19 +523,17 @@ class UnifiedAuthenticationMiddleware
     protected function validateTenantDomainMatch(string $userTenantId, string $requestedTenantDomain): array
     {
         try {
-            // Get tenant information from central database
-            $tenant = DB::connection('pgsql')
-                ->table('tenants')
-                ->where('id', $userTenantId)
-                ->where('is_active', true)
-                ->first();
+            // Get tenant information from Identity Service API
+            $tenantArray = app(\Shared\Services\TenantApiClient::class)->getTenant($userTenantId);
 
-            if (! $tenant) {
+            if (! $tenantArray || !($tenantArray['is_active'] ?? false)) {
                 return [
                     'valid' => false,
                     'message' => 'User tenant not found or inactive',
                 ];
             }
+            
+            $tenant = (object) $tenantArray;
 
             // Check if requested domain matches user's tenant domain
             if ($tenant->domain !== $requestedTenantDomain) {
@@ -643,14 +645,10 @@ class UnifiedAuthenticationMiddleware
             ];
         }
 
-        // Get tenant domain from database using tenant ID (optimization: no need for X-Tenant-Domain header)
-        $tenant = DB::connection('pgsql')
-            ->table('tenants')
-            ->where('id', $apiKeyData['tenant_id'])
-            ->where('is_active', true)
-            ->first();
+        // Get tenant information from Identity Service API
+        $tenantArray = app(\Shared\Services\TenantApiClient::class)->getTenant($apiKeyData['tenant_id']);
 
-        if (! $tenant) {
+        if (! $tenantArray || !($tenantArray['is_active'] ?? false)) {
             Log::warning('API key authentication: Tenant not found or inactive', [
                 'api_key_id' => $apiKeyData['id'] ?? 'N/A',
                 'tenant_id' => $apiKeyData['tenant_id'],
@@ -662,6 +660,8 @@ class UnifiedAuthenticationMiddleware
                 'message' => 'Tenant not found or inactive',
             ];
         }
+        
+        $tenant = (object) $tenantArray;
 
         // CRITICAL: Validate HRMS-Client-ID header matches API key's tenant_id
         $requestedTenantId = $request->header('HRMS-Client-ID');

@@ -4,7 +4,6 @@ namespace Shared\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * AuditLog Model
@@ -71,11 +70,23 @@ class AuditLog extends Model
     protected $hidden = [];
 
     /**
-     * Get the tenant that owns the audit log.
+     * Get tenant information via API (removed cross-service Eloquent relationship)
+     * 
+     * Note: Eloquent relationships should not cross service boundaries.
+     * Use this helper method if you need tenant information.
      */
-    public function tenant(): BelongsTo
+    public function getTenantInfo(): ?array
     {
-        return $this->belongsTo(Tenant::class, 'tenant_id');
+        try {
+            return app(\Shared\Services\TenantApiClient::class)->getTenant($this->tenant_id);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to fetch tenant info for audit log', [
+                'audit_log_id' => $this->id,
+                'tenant_id' => $this->tenant_id,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     /**

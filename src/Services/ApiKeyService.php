@@ -4,330 +4,389 @@ namespace Shared\Services;
 
 use Exception;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Shared\Contracts\ApiKeyServiceInterface;
 
-class ApiKeyService
+/**
+ * API Key Service - Microservices Implementation
+ * 
+ * This service validates API keys by calling the Identity service HTTP API.
+ * It does NOT access the Identity database directly, maintaining proper
+ * microservices separation of concerns and service autonomy.
+ * 
+ * Best Practices Implemented:
+ * - Service-to-service communication via HTTP APIs only
+ * - No cross-database dependencies
+ * - Caching for performance
+ * - Proper error handling and logging
+ * - Circuit breaker pattern via retry logic
+ * 
+ * @package Shared\Services
+ */
+class ApiKeyService implements ApiKeyServiceInterface
 {
     private const CACHE_PREFIX = 'api_key_';
-
     private const CACHE_TTL = 300; // 5 minutes
+
+    private string $identityServiceUrl;
 
     public function __construct()
     {
-        // Service can be used across all microservices
+        // Get Identity service URL from environment
+        // Default assumes Docker network with service name 'identity-app'
+        $this->identityServiceUrl = rtrim(
+            env('IDENTITY_SERVICE_URL', 'http://identity-app:80'),
+            '/'
+        );
     }
 
     /**
-     * Validate API key and return key data
+     * Validate API key via Identity service HTTP API (microservices best practice)
+     * 
+     * This is the primary method for API key validation in the distributed architecture.
+     * It calls the Identity service REST API instead of accessing its database directly,
+     * maintaining service autonomy and proper separation of concerns.
+     * 
+     * @param string $apiKey The API key to validate
+     * @return array|null API key data if valid, null otherwise
      */
     public function validateApiKey(string $apiKey): ?array
     {
         try {
-            // Try to get from cache first
-            $cacheKey = self::CACHE_PREFIX.hash('sha256', $apiKey);
+            // Try cache first for performance
+            $cacheKey = self::CACHE_PREFIX . hash('sha256', $apiKey);
             $cachedData = Cache::get($cacheKey);
 
             if ($cachedData) {
+                Log::debug('API key validation: cache hit', [
+                    'cache_key' => $cacheKey
+                ]);
                 return $cachedData;
             }
-
-            // Query central database for API key (hybrid architecture)
-            $apiKeys = DB::connection('pgsql')
-                ->table('api_keys')
-                ->where('is_active', true)
-                ->get();
-
-            // Check each API key using appropriate verification method
-            foreach ($apiKeys as $apiKeyData) {
-                $isValid = false;
-
-                // Check if it's a bcrypt hash (starts with $2y$)
-                if (str_starts_with($apiKeyData->key_hash, '$2y$')) {
-                    try {
-                        $isValid = \Illuminate\Support\Facades\Hash::check($apiKey, $apiKeyData->key_hash);
-                    } catch (\Exception $e) {
-                        // If bcrypt check fails, continue to next key
-                        continue;
-                    }
-                } else {
-                    // Assume it's SHA256 hash
-                    $isValid = hash('sha256', $apiKey) === $apiKeyData->key_hash;
-                }
-
-                if ($isValid) {
-                    $result = [
-                        'id' => $apiKeyData->id,
-                        'tenant_id' => $apiKeyData->tenant_id,
-                        'name' => $apiKeyData->name,
-                        'permissions' => json_decode($apiKeyData->permissions, true) ?? [],
-                        'expires_at' => $apiKeyData->expires_at,
-                        'is_active' => $apiKeyData->is_active,
-                        'last_used_at' => $apiKeyData->last_used_at,
-                        'created_at' => $apiKeyData->created_at,
-                        'updated_at' => $apiKeyData->updated_at,
-                    ];
-
-                    // Cache the result
-                    Cache::put($cacheKey, $result, self::CACHE_TTL);
-
-                    return $result;
-                }
-            }
-
-            // No API key found
-            return null;
-
-        } catch (Exception $e) {
-            Log::error('API key validation error', [
-                'error' => $e->getMessage(),
-                'api_key_prefix' => substr($apiKey, 0, 10).'...',
+            
+            // Call Identity service INTERNAL API
+            Log::debug('API key validation: calling Identity service internal API', [
+                'identity_url' => $this->identityServiceUrl,
+                'api_key_preview' => substr($apiKey, 0, 10) . '...'
             ]);
 
-            return null;
-        }
-    }
-
-    /**
-     * Update last used timestamp for API key
-     */
-    public function updateLastUsed(string $apiKeyId): bool
-    {
-        try {
-            $updated = DB::connection('pgsql')
-                ->table('api_keys')
-                ->where('id', $apiKeyId)
-                ->update([
-                    'last_used_at' => now(),
-                    'updated_at' => now(),
+            $response = Http::timeout(5)
+                ->retry(2, 100) // Retry twice with 100ms delay (circuit breaker)
+                ->withHeaders([
+                    'X-Internal-Service-Secret' => config('services.internal_secret'),
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json',
+                ])
+                ->post("{$this->identityServiceUrl}/api/v1/internal/api-keys/validate", [
+                    'api_key' => $apiKey
                 ]);
 
-            if ($updated) {
-                // Clear cache for this API key
-                $this->clearApiKeyCache($apiKeyId);
+            // Handle HTTP errors
+            if (!$response->successful()) {
+                Log::warning('API key validation failed: HTTP error', [
+                    'status' => $response->status(),
+                    'response' => $response->body()
+                ]);
+                return null;
             }
 
-            return $updated > 0;
+            $responseData = $response->json();
 
-        } catch (Exception $e) {
-            Log::error('Failed to update API key last used timestamp', [
-                'api_key_id' => $apiKeyId,
-                'error' => $e->getMessage(),
+            // Validate response structure
+            if (!isset($responseData['success']) || !$responseData['success']) {
+                Log::warning('API key validation failed: unsuccessful response', [
+                    'response' => $responseData
+                ]);
+                return null;
+            }
+
+            $result = $responseData['data'] ?? null;
+
+            if (!$result) {
+                Log::warning('API key validation failed: missing data in response', [
+                    'response' => $responseData
+                ]);
+                return null;
+            }
+
+            // Cache the successful result
+            Cache::put($cacheKey, $result, self::CACHE_TTL);
+
+            Log::info('API key validated successfully', [
+                'tenant_id' => $result['tenant_id'] ?? null,
+                'api_key_name' => $result['name'] ?? null
             ]);
 
-            return false;
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('API key validation exception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
         }
     }
 
     /**
-     * Check if API key has specific permission
+     * Verify if an API key is valid (boolean check)
+     * 
+     * @param string $apiKey
+     * @return bool
      */
-    public function hasPermission(string $apiKey, string $permission): bool
+    public function verifyApiKey(string $apiKey): bool
     {
-        $apiKeyData = $this->validateApiKey($apiKey);
+        return $this->validateApiKey($apiKey) !== null;
+    }
 
-        if (! $apiKeyData) {
-            return false;
-        }
+    /**
+     * Get API key data
+     * 
+     * This is an alias for validateApiKey() for backward compatibility
+     * 
+     * @param string $apiKey
+     * @return array|null
+     */
+    public function getApiKeyData(string $apiKey): ?array
+    {
+        return $this->validateApiKey($apiKey);
+    }
 
+    /**
+     * Check if API key has a specific permission
+     * 
+     * Supports:
+     * - Wildcard permissions (*)
+     * - Exact match (employee.read)
+     * - Pattern matching (employee.* matches employee.read, employee.write, etc.)
+     * 
+     * @param array $apiKeyData API key data from validateApiKey()
+     * @param string $permission Permission to check
+     * @return bool
+     */
+    public function hasPermission(array $apiKeyData, string $permission): bool
+    {
         $permissions = $apiKeyData['permissions'] ?? [];
 
-        // Check for wildcard permission
+        // Wildcard permission grants everything
         if (in_array('*', $permissions)) {
             return true;
         }
 
-        // Check for specific permission
-        return in_array($permission, $permissions);
+        // Exact permission match
+        if (in_array($permission, $permissions)) {
+            return true;
+        }
+
+        // Pattern matching (e.g., 'employee.*' matches 'employee.read')
+        foreach ($permissions as $perm) {
+            if (str_ends_with($perm, '.*')) {
+                $prefix = substr($perm, 0, -2);
+                if (str_starts_with($permission, $prefix . '.')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
-     * Get API key permissions
+     * Get all permissions for an API key
+     * 
+     * @param string $apiKey
+     * @return array
      */
     public function getPermissions(string $apiKey): array
     {
         $apiKeyData = $this->validateApiKey($apiKey);
-
-        if (! $apiKeyData) {
-            return [];
-        }
-
         return $apiKeyData['permissions'] ?? [];
     }
 
     /**
-     * Revoke API key
+     * Clear cached API key data
+     * 
+     * Call this after revoking or updating an API key
+     * 
+     * @param string $apiKey
+     * @return void
      */
-    public function revokeApiKey(string $apiKeyId): bool
+    public function clearCache(string $apiKey): void
     {
-        try {
-            $updated = DB::connection('pgsql')
-                ->table('api_keys')
-                ->where('id', $apiKeyId)
-                ->update([
-                    'is_active' => false,
-                    'updated_at' => now(),
-                ]);
+        $cacheKey = self::CACHE_PREFIX . hash('sha256', $apiKey);
+        Cache::forget($cacheKey);
 
-            if ($updated) {
-                // Clear cache for this API key
-                $this->clearApiKeyCache($apiKeyId);
-
-                Log::info('API key revoked', [
-                    'api_key_id' => $apiKeyId,
-                ]);
-            }
-
-            return $updated > 0;
-
-        } catch (Exception $e) {
-            Log::error('Failed to revoke API key', [
-                'api_key_id' => $apiKeyId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
+        Log::debug('API key cache cleared', [
+            'cache_key' => $cacheKey
+        ]);
     }
 
     /**
-     * Get API key statistics
+     * Clear all API key caches
+     * 
+     * Note: This is a best-effort operation. For production systems,
+     * consider using cache tags or a dedicated cache store.
+     * 
+     * @return void
      */
-    public function getApiKeyStats(string $tenantId): array
+    public function clearAllCaches(): void
     {
-        try {
-            $stats = DB::connection('pgsql')
-                ->table('api_keys')
-                ->where('tenant_id', $tenantId)
-                ->selectRaw('
-                    COUNT(*) as total_keys,
-                    COUNT(CASE WHEN is_active = true THEN 1 END) as active_keys,
-                    COUNT(CASE WHEN is_active = false THEN 1 END) as inactive_keys,
-                    COUNT(CASE WHEN expires_at IS NOT NULL AND expires_at > NOW() THEN 1 END) as expired_keys,
-                    COUNT(CASE WHEN last_used_at IS NOT NULL THEN 1 END) as used_keys
-                ')
-                ->first();
-
-            return [
-                'total_keys' => (int) $stats->total_keys,
-                'active_keys' => (int) $stats->active_keys,
-                'inactive_keys' => (int) $stats->inactive_keys,
-                'expired_keys' => (int) $stats->expired_keys,
-                'used_keys' => (int) $stats->used_keys,
-            ];
-
-        } catch (Exception $e) {
-            Log::error('Failed to get API key statistics', [
-                'tenant_id' => $tenantId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'total_keys' => 0,
-                'active_keys' => 0,
-                'inactive_keys' => 0,
-                'expired_keys' => 0,
-                'used_keys' => 0,
-            ];
-        }
+        Log::info('Clearing all API key caches - note: requires cache tags for complete clearing');
+        // In production, implement using cache tags:
+        // Cache::tags(['api_keys'])->flush();
     }
 
     /**
-     * Clean up expired API keys
-     *
-     * @return int Number of keys cleaned up
-     */
-    public function cleanupExpiredKeys(): int
-    {
-        try {
-            $deleted = DB::connection('pgsql')
-                ->table('api_keys')
-                ->where('expires_at', '<', now())
-                ->where('is_active', true)
-                ->update([
-                    'is_active' => false,
-                    'updated_at' => now(),
-                ]);
-
-            if ($deleted > 0) {
-                Log::info('Cleaned up expired API keys', [
-                    'count' => $deleted,
-                ]);
-            }
-
-            return $deleted;
-
-        } catch (Exception $e) {
-            Log::error('Failed to cleanup expired API keys', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return 0;
-        }
-    }
-
-    /**
-     * Clear API key cache
-     */
-    private function clearApiKeyCache(string $apiKeyId): void
-    {
-        try {
-            // Get the API key to find its hash
-            $apiKey = DB::connection('pgsql')
-                ->table('api_keys')
-                ->where('id', $apiKeyId)
-                ->value('key_hash');
-
-            if ($apiKey) {
-                $cacheKey = self::CACHE_PREFIX.$apiKey;
-                Cache::forget($cacheKey);
-            }
-        } catch (Exception $e) {
-            Log::warning('Failed to clear API key cache', [
-                'api_key_id' => $apiKeyId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Generate a new API key
+     * Generate a new API key string
+     * 
+     * Format: ak_{64_hex_characters}
+     * Total length: 67 characters
+     * 
+     * @return string
      */
     public static function generateApiKey(): string
     {
-        return 'ak_'.bin2hex(random_bytes(32));
+        return 'ak_' . bin2hex(random_bytes(32));
     }
 
     /**
-     * Hash API key for storage
+     * Hash an API key for storage
+     * 
+     * Note: This should only be used by the Identity service.
+     * Other services should not store or hash API keys.
+     * 
+     * @param string $apiKey
+     * @return string
      */
     public static function hashApiKey(string $apiKey): string
     {
         return hash('sha256', $apiKey);
     }
 
-    /**
-     * Configure tenant database connection
-     *
-     * @param  object  $tenant
+    /*
+     * ============================================================================
+     * REMOVED METHODS (Violations of Microservices Best Practices)
+     * ============================================================================
+     * 
+     * The following methods were removed because they accessed the Identity
+     * database directly from other services, violating service autonomy:
+     * 
+     * - updateLastUsed() - Should be handled by Identity service during validation
+     * - revokeApiKey() - Should call Identity service API endpoint
+     * - getApiKeyStats() - Should call Identity service API endpoint
+     * - cleanupExpiredKeys() - Should be handled by Identity service internally
+     * - clearApiKeyCache() - Replaced with clearCache()
+     * 
+     * If these operations are needed, they should be:
+     * 1. Exposed as HTTP API endpoints in the Identity service
+     * 2. Called via HTTP from other services
+     * 3. Or handled automatically by the Identity service itself
+     * 
+     * CORRECT MICROSERVICES PATTERN:
+     * 
+     * ┌─────────────────────┐
+     * │ Employee/Core       │
+     * │ Service             │
+     * │                     │
+     * │ HTTP Request  ──────┼──────┐
+     * └─────────────────────┘      │
+     *                              ▼
+     * ┌──────────────────────────────────────┐
+     * │ Identity Service                      │
+     * │ (Sole Authority for API Keys)         │
+     * │                                       │
+     * │ - Validates API keys                  │
+     * │ - Updates last_used_at automatically  │
+     * │ - Manages lifecycle (create/revoke)   │
+     * │ - Provides statistics                 │
+     * │ - Handles cleanup                     │
+     * └──────────────────────────────────────┘
      */
-    private function configureTenantConnection($tenant): void
-    {
-        $connectionName = "tenant_{$tenant->id}";
 
-        Config::set("database.connections.{$connectionName}", [
-            'driver' => 'pgsql',
-            'host' => config('database.connections.pgsql.host'),
-            'port' => config('database.connections.pgsql.port'),
-            'database' => $tenant->database_name,
-            'username' => config('database.connections.pgsql.username'),
-            'password' => config('database.connections.pgsql.password'),
-            'charset' => 'utf8',
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => 'prefer',
-        ]);
+    /**
+     * Get API key by ID (from Identity Service)
+     * 
+     * Implementation of ApiKeyServiceInterface
+     *
+     * @param string $apiKeyId API key UUID
+     * @return array|null API key data or null if not found
+     */
+    public function getApiKey(string $apiKeyId): ?array
+    {
+        try {
+            $response = Http::timeout(5)
+                ->withHeaders([
+                    'X-Internal-Service-Secret' => config('services.internal_secret'),
+                    'Accept' => 'application/json',
+                ])
+                ->get("{$this->identityServiceUrl}/api/v1/internal/api-keys/{$apiKeyId}");
+            
+            if (!$response->successful()) {
+                Log::warning('Failed to get API key by ID', [
+                    'api_key_id' => $apiKeyId,
+                    'status' => $response->status(),
+                ]);
+                return null;
+            }
+            
+            $responseData = $response->json();
+            
+            if (!isset($responseData['success']) || !$responseData['success']) {
+                return null;
+            }
+            
+            return $responseData['data'] ?? null;
+            
+        } catch (Exception $e) {
+            Log::error('Exception getting API key by ID', [
+                'api_key_id' => $apiKeyId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Get all API keys for a tenant (from Identity Service)
+     * 
+     * Implementation of ApiKeyServiceInterface
+     *
+     * @param string $tenantId Tenant UUID
+     * @return array Array of API keys
+     */
+    public function getTenantApiKeys(string $tenantId): array
+    {
+        try {
+            $response = Http::timeout(5)
+                ->withHeaders([
+                    'X-Internal-Service-Secret' => config('services.internal_secret'),
+                    'Accept' => 'application/json',
+                ])
+                ->get("{$this->identityServiceUrl}/api/v1/internal/api-keys/tenant/{$tenantId}");
+            
+            if (!$response->successful()) {
+                Log::warning('Failed to get tenant API keys', [
+                    'tenant_id' => $tenantId,
+                    'status' => $response->status(),
+                ]);
+                return [];
+            }
+            
+            $responseData = $response->json();
+            
+            if (!isset($responseData['success']) || !$responseData['success']) {
+                return [];
+            }
+            
+            return $responseData['data'] ?? [];
+            
+        } catch (Exception $e) {
+            Log::error('Exception getting tenant API keys', [
+                'tenant_id' => $tenantId,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
+        }
     }
 }

@@ -297,28 +297,20 @@ class DistributedDatabaseService
         $cacheKey = self::CACHE_PREFIX . $identifier;
 
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($identifier) {
-            // Always query from central database
-            $centralConnection = $this->getCentralConnectionName();
-
+            // Use TenantApiClient to fetch tenant information from Identity Service
             try {
                 // Check if identifier is a UUID (for ID lookup)
                 if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $identifier)) {
-                    $tenant = DB::connection($centralConnection)
-                        ->table('tenants')
-                        ->where('id', $identifier)
-                        ->first();
+                    $tenant = app(\Shared\Services\TenantApiClient::class)->getTenant($identifier);
                 } else {
                     // Assume it's a domain for domain lookup
-                    $tenant = DB::connection($centralConnection)
-                        ->table('tenants')
-                        ->where('domain', $identifier)
-                        ->first();
+                    $tenant = app(\Shared\Services\TenantApiClient::class)->getTenantByDomain($identifier);
                 }
 
-                return $tenant ? (array) $tenant : null;
+                return $tenant;
 
             } catch (Exception $e) {
-                Log::error('Failed to get tenant from central database', [
+                Log::error('Failed to get tenant from Identity Service', [
                     'identifier' => $identifier,
                     'service' => $this->currentService,
                     'error' => $e->getMessage(),
