@@ -45,8 +45,8 @@ abstract class TenantAwareModel extends Model implements TenantAwareInterface
      * Get the database connection for the model.
      *
      * IMPORTANT: Always use the framework's current default connection.
-     * The HybridTenantDatabaseMiddleware/DatabaseConnectionManager are
-     * responsible for switching connections per-request.
+     * The UnifiedAuthenticationMiddleware and DistributedDatabaseService are
+     * responsible for switching connections per-request in the distributed architecture.
      */
     public function getConnection()
     {

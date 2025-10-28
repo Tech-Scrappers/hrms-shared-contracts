@@ -11,24 +11,24 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Shared\Services\ApiKeyService;
-use Shared\Services\HybridDatabaseService;
+use Shared\Services\DistributedDatabaseService;
 use Shared\Services\SecurityService;
 
 class UnifiedAuthenticationMiddleware
 {
     protected $apiKeyService;
 
-    protected $hybridDatabaseService;
+    protected $distributedDatabaseService;
 
     protected $securityService;
 
     public function __construct(
         ApiKeyService $apiKeyService, 
-        HybridDatabaseService $hybridDatabaseService,
+        DistributedDatabaseService $distributedDatabaseService,
         SecurityService $securityService
     ) {
         $this->apiKeyService = $apiKeyService;
-        $this->hybridDatabaseService = $hybridDatabaseService;
+        $this->distributedDatabaseService = $distributedDatabaseService;
         $this->securityService = $securityService;
     }
 
@@ -101,14 +101,20 @@ class UnifiedAuthenticationMiddleware
             // Get tenant information from database (with caching)
             $tenant = DB::connection('pgsql')->table('tenants')->where('id', $tenantId)->first();
 
+            if (!$tenant) {
+                return $this->unauthorizedResponse('Tenant not found or inactive');
+            }
+
+            // Set tenant context on request
             $request->merge([
                 'tenant_id' => $tenantId,
                 'tenant_domain' => $tenant->domain,
                 'tenant_name' => $tenant->name,
             ]);
 
-            // NOTE: Database switching is handled by HybridTenantDatabaseMiddleware
-            // which comes after this middleware in the stack
+            // Switch to tenant-specific database (Distributed Architecture)
+            // Each service connects to its own database instance
+            $this->distributedDatabaseService->switchToTenantDatabase($tenantId);
 
             // Set authenticated API key on request
             $request->merge(['api_key' => $apiKeyData]);
@@ -195,13 +201,20 @@ class UnifiedAuthenticationMiddleware
                     ->where('is_active', true)
                     ->first();
 
+                if (!$tenant) {
+                    return $this->unauthorizedResponse('Tenant not found or inactive');
+                }
+
+                // Set tenant context on request
                 $request->merge([
                     'tenant_id' => $tenantId,
                     'tenant_domain' => $tenant->domain ?? null,
                     'tenant_name' => $tenant->name ?? null,
                 ]);
-                // NOTE: Database switching is handled by HybridTenantDatabaseMiddleware
-                // which comes after this middleware in the stack
+                
+                // Switch to tenant-specific database (Distributed Architecture)
+                // Each service connects to its own database instance
+                $this->distributedDatabaseService->switchToTenantDatabase($tenantId);
             }
 
             // Set auth_user in request for downstream middleware

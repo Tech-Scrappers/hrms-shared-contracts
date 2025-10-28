@@ -9,7 +9,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Shared\Services\ApiKeyService;
-use Shared\Services\TenantDatabaseService;
+use Shared\Services\DistributedDatabaseService;
 
 class ApiKeyAuthenticationMiddleware
 {
@@ -25,7 +25,7 @@ class ApiKeyAuthenticationMiddleware
 
     public function __construct(
         private ApiKeyService $apiKeyService,
-        private TenantDatabaseService $tenantDatabaseService
+        private DistributedDatabaseService $distributedDatabaseService
     ) {}
 
     /**
@@ -77,8 +77,8 @@ class ApiKeyAuthenticationMiddleware
                 return $this->unauthorizedResponse('Tenant is inactive');
             }
 
-            // Switch to tenant database
-            $this->tenantDatabaseService->switchToTenantDatabase($tenant['id']);
+            // Switch to tenant database (Distributed Architecture)
+            $this->distributedDatabaseService->switchToTenantDatabase($tenant['id']);
 
             // Add authentication context to request
             $this->addAuthenticationContext($request, $apiKeyData, $tenant);
@@ -93,7 +93,7 @@ class ApiKeyAuthenticationMiddleware
             $response = $next($request);
 
             // Switch back to central database
-            $this->tenantDatabaseService->switchToCentralDatabase();
+            $this->distributedDatabaseService->switchToCentralDatabase();
 
             return $response;
 
@@ -196,7 +196,7 @@ class ApiKeyAuthenticationMiddleware
      */
     private function getTenantInformation(string $tenantId): ?array
     {
-        return $this->tenantDatabaseService->getTenant($tenantId);
+        return $this->distributedDatabaseService->getTenant($tenantId);
     }
 
     /**
