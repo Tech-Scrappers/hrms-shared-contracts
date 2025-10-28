@@ -97,6 +97,7 @@ class OAuth2TokenValidationMiddleware
 
             $response = Http::timeout(10)
                 ->withHeaders([
+                    'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
                     'Authorization' => 'Bearer '.$token,
                 ])

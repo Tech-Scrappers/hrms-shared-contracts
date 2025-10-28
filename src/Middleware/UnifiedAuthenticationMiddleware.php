@@ -248,6 +248,7 @@ class UnifiedAuthenticationMiddleware
 
         try {
             $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'Authorization' => 'Bearer '.$token,
             ])->post($identityServiceUrl.'/api/v1/auth/validate-token');
