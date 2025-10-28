@@ -107,7 +107,8 @@ class UnifiedAuthenticationMiddleware
                 'tenant_name' => $tenant->name,
             ]);
 
-            $this->hybridDatabaseService->switchToTenantDatabase($tenantId);
+            // NOTE: Database switching is handled by HybridTenantDatabaseMiddleware
+            // which comes after this middleware in the stack
 
             // Set authenticated API key on request
             $request->merge(['api_key' => $apiKeyData]);
@@ -199,7 +200,8 @@ class UnifiedAuthenticationMiddleware
                     'tenant_domain' => $tenant->domain ?? null,
                     'tenant_name' => $tenant->name ?? null,
                 ]);
-                $this->hybridDatabaseService->switchToTenantDatabase($tenantId);
+                // NOTE: Database switching is handled by HybridTenantDatabaseMiddleware
+                // which comes after this middleware in the stack
             }
 
             // Set auth_user in request for downstream middleware
