@@ -33,12 +33,17 @@ class ApiKeyService implements ApiKeyServiceInterface
 
     public function __construct()
     {
-        // Get Identity service URL from environment
-        // Default assumes Docker network with service name 'identity-app'
+        // Get Identity service URL from configuration
+        // Must use config() instead of env() to work with cached config
         $this->identityServiceUrl = rtrim(
-            env('IDENTITY_SERVICE_URL', 'http://identity-app:80'),
+            config('services.identity_service.url', 'http://host.docker.internal:8001'),
             '/'
         );
+        
+        // Validate that URL is configured
+        if (!$this->identityServiceUrl) {
+            throw new Exception('IDENTITY_SERVICE_URL is not configured');
+        }
     }
 
     /**
