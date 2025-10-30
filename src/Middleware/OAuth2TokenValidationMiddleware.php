@@ -54,9 +54,9 @@ class OAuth2TokenValidationMiddleware
             if (isset($user['tenant_id'])) {
                 $request->merge(['tenant_id' => $user['tenant_id']]);
 
-                // Switch to tenant database
-                $tenantDatabaseService = app(\Shared\Services\TenantDatabaseService::class);
-                $tenantDatabaseService->switchToTenantDatabase($user['tenant_id']);
+                // Switch to tenant database (Distributed Architecture)
+                $distributedDatabaseService = app(\Shared\Services\DistributedDatabaseService::class);
+                $distributedDatabaseService->switchToTenantDatabase($user['tenant_id']);
             }
 
             return $next($request);
@@ -97,6 +97,7 @@ class OAuth2TokenValidationMiddleware
 
             $response = Http::timeout(10)
                 ->withHeaders([
+                    'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
                     'Authorization' => 'Bearer '.$token,
                 ])

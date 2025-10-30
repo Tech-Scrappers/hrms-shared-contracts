@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- TenantApiClient for HTTP-based tenant information retrieval
+- SecurityEventApiClient for centralized security event logging
+- Interface abstractions (TenantServiceInterface, SecurityEventServiceInterface, ApiKeyServiceInterface)
+- Circuit breaker pattern for resilience
+- Multi-layer caching with fallback mechanisms
+- Internal service authentication support
+
+### Changed
+- Updated ApiKeyService to use internal API endpoint instead of direct database access
+- Modified UnifiedAuthenticationMiddleware to use TenantApiClient for tenant lookups
+- Updated SecurityService to use SecurityEventApiClient for event logging
+- Updated DistributedDatabaseService to use TenantApiClient
+
+### Fixed
+- Removed all direct database queries from shared services (microservices best practice)
+- Removed cross-service Eloquent relationship from AuditLog model
+- Fixed ApiKeyAuthenticationMiddleware to not update timestamps directly
+
+### Removed
+- Direct database access from UnifiedAuthenticationMiddleware (5 queries removed)
+- Direct database access from SecurityService
+- Cross-service Eloquent relationships
+
 ## [1.0.0] - 2025-01-20
 
 ### Added

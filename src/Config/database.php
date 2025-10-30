@@ -3,26 +3,17 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Hybrid Database Configuration
+    | Distributed Database Configuration
     |--------------------------------------------------------------------------
     |
-    | This configuration file defines the hybrid database architecture
-    | that combines Database-per-Service with Database-per-Tenant strategies.
+    | This configuration file defines the distributed database architecture
+    | for HRMS microservices where each service has its own PostgreSQL instance.
+    |
+    | Architecture: Each microservice has its own database container/instance
+    | Tenants: Each tenant gets separate databases in each service's DB instance
+    | Naming: tenant_{tenantId}_{service}
     |
     */
-
-    /*
-    |--------------------------------------------------------------------------
-    | Database Architecture Mode
-    |--------------------------------------------------------------------------
-    |
-    | Supported modes:
-    | - 'tenant-only': Current implementation (Database-per-Tenant only)
-    | - 'hybrid': Future implementation (Database-per-Service + Database-per-Tenant)
-    | - 'service-only': Database-per-Service only (no tenant isolation)
-    |
-    */
-    'mode' => env('DATABASE_ARCHITECTURE_MODE', 'tenant-only'),
 
     /*
     |--------------------------------------------------------------------------
@@ -81,9 +72,8 @@ return [
     |
     */
     'naming' => [
-        'tenant_database' => 'tenant_{tenant_id}',
-        'service_database' => 'tenant_{tenant_id}_{service}',
-        'central_database' => 'hrms_central',
+        'tenant_database' => 'tenant_{tenant_id}_{service}',
+        'central_database' => 'hrms_{service}',
     ],
 
     /*
@@ -97,8 +87,10 @@ return [
     'connections' => [
         'central' => 'pgsql',
         'tenant_prefix' => 'tenant_',
-        'service_prefix' => 'service_',
         'cache_ttl' => 3600, // 1 hour
+        'connection_pooling' => env('DB_CONNECTION_POOLING', true),
+        'max_connections_per_service' => env('DB_MAX_CONNECTIONS', 50),
+        'connection_timeout' => env('DB_CONNECTION_TIMEOUT', 30),
     ],
 
     /*
@@ -124,7 +116,7 @@ return [
     |
     */
     'seeding' => [
-        'auto_run' => env('AUTO_RUN_SEEDERS', true),
+        'auto_run' => env('AUTO_RUN_SEEDERS', false),
         'force' => env('FORCE_SEEDERS', false),
         'timeout' => 300, // 5 minutes
     ],
@@ -170,7 +162,6 @@ return [
     'security' => [
         'encrypt_connections' => env('DB_ENCRYPT_CONNECTIONS', true),
         'ssl_mode' => env('DB_SSL_MODE', 'prefer'),
-        'user_isolation' => env('DB_USER_ISOLATION', true),
         'audit_logging' => env('DB_AUDIT_LOGGING', true),
     ],
 
@@ -188,4 +179,38 @@ return [
         'retention_days' => env('DB_BACKUP_RETENTION_DAYS', 30),
         'encrypt_backups' => env('DB_ENCRYPT_BACKUPS', true),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Docker/Container Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for containerized deployments (Docker/Kubernetes)
+    |
+    */
+    'docker' => [
+        'enabled' => env('DOCKER_ENABLED', true),
+        
+        // Service-specific database hosts (for distributed architecture)
+        'service_hosts' => [
+            'identity' => env('IDENTITY_DB_HOST', env('DB_HOST', 'identity-db')),
+            'employee' => env('EMPLOYEE_DB_HOST', env('DB_HOST', 'employee-db')),
+            'core' => env('CORE_DB_HOST', env('DB_HOST', 'core-db')),
+        ],
+        
+        // Service-specific database ports
+        'service_ports' => [
+            'identity' => env('IDENTITY_DB_PORT', env('DB_PORT', 5432)),
+            'employee' => env('EMPLOYEE_DB_PORT', env('DB_PORT', 5432)),
+            'core' => env('CORE_DB_PORT', env('DB_PORT', 5432)),
+        ],
+        
+        // Health check configuration
+        'health_check' => [
+            'enabled' => env('DB_HEALTH_CHECK_ENABLED', true),
+            'interval' => env('DB_HEALTH_CHECK_INTERVAL', 60), // seconds
+            'timeout' => env('DB_HEALTH_CHECK_TIMEOUT', 5), // seconds
+        ],
+    ],
 ];
+

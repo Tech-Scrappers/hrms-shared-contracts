@@ -9,7 +9,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Shared\Services\ApiKeyService;
-use Shared\Services\TenantDatabaseService;
+use Shared\Services\DistributedDatabaseService;
 
 class ApiKeyAuthenticationMiddleware
 {
@@ -25,7 +25,7 @@ class ApiKeyAuthenticationMiddleware
 
     public function __construct(
         private ApiKeyService $apiKeyService,
-        private TenantDatabaseService $tenantDatabaseService
+        private DistributedDatabaseService $distributedDatabaseService
     ) {}
 
     /**
@@ -77,8 +77,8 @@ class ApiKeyAuthenticationMiddleware
                 return $this->unauthorizedResponse('Tenant is inactive');
             }
 
-            // Switch to tenant database
-            $this->tenantDatabaseService->switchToTenantDatabase($tenant['id']);
+            // Switch to tenant database (Distributed Architecture)
+            $this->distributedDatabaseService->switchToTenantDatabase($tenant['id']);
 
             // Add authentication context to request
             $this->addAuthenticationContext($request, $apiKeyData, $tenant);
@@ -86,14 +86,14 @@ class ApiKeyAuthenticationMiddleware
             // Log API key usage
             $this->logApiKeyUsage($apiKeyData, $request);
 
-            // Update last used timestamp
-            $this->updateLastUsedTimestamp($apiKeyData['id']);
+            // NOTE: Last used timestamp is updated by Identity service during validation
+            // Don't update here to avoid cross-service database access
 
             // Process request
             $response = $next($request);
 
             // Switch back to central database
-            $this->tenantDatabaseService->switchToCentralDatabase();
+            $this->distributedDatabaseService->switchToCentralDatabase();
 
             return $response;
 
@@ -196,7 +196,7 @@ class ApiKeyAuthenticationMiddleware
      */
     private function getTenantInformation(string $tenantId): ?array
     {
-        return $this->tenantDatabaseService->getTenant($tenantId);
+        return $this->distributedDatabaseService->getTenant($tenantId);
     }
 
     /**
@@ -241,19 +241,11 @@ class ApiKeyAuthenticationMiddleware
     }
 
     /**
-     * Update last used timestamp for API key
+     * NOTE: Removed updateLastUsedTimestamp() method
+     * 
+     * Last used timestamp should be handled by the Identity service during API key validation,
+     * not by individual services. This maintains proper microservices separation of concerns.
      */
-    private function updateLastUsedTimestamp(string $apiKeyId): void
-    {
-        try {
-            $this->apiKeyService->updateLastUsed($apiKeyId);
-        } catch (Exception $e) {
-            Log::warning('Failed to update API key last used timestamp', [
-                'api_key_id' => $apiKeyId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
 
     /**
      * Return unauthorized response

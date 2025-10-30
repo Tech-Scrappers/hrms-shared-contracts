@@ -129,6 +129,7 @@ class ExternalEmployeeResolver
     {
         $client = Http::timeout($this->timeout)
             ->withHeaders(array_filter([
+                'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
                 'HRMS-Client-ID' => $context['tenant_id'],
                 'HRMS-Client-Secret' => $headers['HRMS-Client-Secret'] ?? null,
