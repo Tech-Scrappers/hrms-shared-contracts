@@ -197,7 +197,10 @@ class BruteForceProtectionMiddleware
      */
     private function lockAccount(string $email): void
     {
-        Cache::put($this->lockoutKey($email), true, now()->addSeconds(self::LOCKOUT_DURATION));
+        // Store the exact unlock time as the cache VALUE (Carbon instance) and also as TTL.
+        // Previously this stored boolean true which later caused Carbon::diffInSeconds(true) type errors.
+        $expiresAt = now()->addSeconds(self::LOCKOUT_DURATION);
+        Cache::put($this->lockoutKey($email), $expiresAt, $expiresAt);
     }
 
     /**
@@ -227,7 +230,9 @@ class BruteForceProtectionMiddleware
      */
     private function banIp(string $ip): void
     {
-        Cache::put($this->ipBanKey($ip), true, now()->addSeconds(self::IP_BAN_DURATION));
+        // Store the exact unban time as the cache VALUE (Carbon instance) and also as TTL.
+        $expiresAt = now()->addSeconds(self::IP_BAN_DURATION);
+        Cache::put($this->ipBanKey($ip), $expiresAt, $expiresAt);
     }
 
     /**

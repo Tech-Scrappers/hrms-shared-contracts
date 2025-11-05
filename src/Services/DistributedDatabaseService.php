@@ -207,7 +207,9 @@ class DistributedDatabaseService
                 throw new Exception("Tenant database does not exist: {$databaseName}");
             }
 
-            $connectionName = "tenant_{$tenantId}_{$this->currentService}";
+            // Sanitize tenant ID for connection name (replace hyphens with underscores)
+            $sanitizedTenantId = str_replace('-', '_', $tenantId);
+            $connectionName = "tenant_{$sanitizedTenantId}_{$this->currentService}";
 
             // Check if connection exists in pool and is valid
             if (isset(self::$connectionPool[$connectionName])) {
@@ -380,6 +382,8 @@ class DistributedDatabaseService
      */
     private function generateDatabaseName(string $tenantId, string $service): string
     {
+        // PostgreSQL supports hyphens in database names, no need to sanitize
+        // Keep the tenant ID as-is for consistency with existing databases
         return "tenant_{$tenantId}_{$service}";
     }
 
@@ -414,7 +418,9 @@ class DistributedDatabaseService
      */
     private function configureTenantConnection(string $tenantId): void
     {
-        $connectionName = "tenant_{$tenantId}_{$this->currentService}";
+        // Sanitize tenant ID for connection name (replace hyphens with underscores)
+        $sanitizedTenantId = str_replace('-', '_', $tenantId);
+        $connectionName = "tenant_{$sanitizedTenantId}_{$this->currentService}";
         $databaseName = $this->generateDatabaseName($tenantId, $this->currentService);
 
         // Get current service's DB configuration
