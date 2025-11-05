@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-11-05
+
 ### Added
 - TenantApiClient for HTTP-based tenant information retrieval
 - SecurityEventApiClient for centralized security event logging
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modified UnifiedAuthenticationMiddleware to use TenantApiClient for tenant lookups
 - Updated SecurityService to use SecurityEventApiClient for event logging
 - Updated DistributedDatabaseService to use TenantApiClient
+- Updated DistributedTenantDatabaseMiddleware for improved tenant database handling
 
 ### Fixed
 - Removed all direct database queries from shared services (microservices best practice)

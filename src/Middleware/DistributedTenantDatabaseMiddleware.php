@@ -66,9 +66,9 @@ class DistributedTenantDatabaseMiddleware
             // Step 3: Get current service context
             $currentService = $this->distributedDatabaseService->getCurrentService();
             $actualTenantId = $tenant['id'];
-            // Sanitize tenant ID for database name (replace hyphens with underscores)
-            $sanitizedTenantId = str_replace('-', '_', $actualTenantId);
-            $databaseName = "tenant_{$sanitizedTenantId}_{$currentService}";
+            // PostgreSQL supports hyphens in database names, no need to sanitize
+            // Keep the tenant ID as-is for consistency with existing databases
+            $databaseName = "tenant_{$actualTenantId}_{$currentService}";
 
             // Step 4: Verify tenant database exists on current service's instance
             if (!$this->distributedDatabaseService->tenantDatabaseExists($databaseName)) {
