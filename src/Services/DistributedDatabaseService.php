@@ -382,9 +382,9 @@ class DistributedDatabaseService
      */
     private function generateDatabaseName(string $tenantId, string $service): string
     {
-        // Sanitize tenant ID for database name (replace hyphens with underscores)
-        $sanitizedTenantId = str_replace('-', '_', $tenantId);
-        return "tenant_{$sanitizedTenantId}_{$service}";
+        // PostgreSQL supports hyphens in database names, no need to sanitize
+        // Keep the tenant ID as-is for consistency with existing databases
+        return "tenant_{$tenantId}_{$service}";
     }
 
     /**
