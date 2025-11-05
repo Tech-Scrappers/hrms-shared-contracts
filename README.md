@@ -1,10 +1,24 @@
 # HRMS Shared Components Package
 
-A comprehensive shared components package for the HRMS microservices ecosystem, providing enterprise-grade middleware, services, events, and utilities for building scalable multi-tenant HR management systems.
+A comprehensive shared components package for the HRMS microservices ecosystem, providing enterprise-grade middleware, services, events, and utilities for building scalable multi-tenant HR management systems with **distributed database architecture**.
 
 ## 📦 Package Contents
 
-### 🔒 Middleware (17 Components)
+### 🗄️ **Database Architecture: Distributed**
+
+Each microservice has its own PostgreSQL database instance (Docker container). Each tenant gets separate databases in each service's own DB instance.
+
+**Key Components:**
+- **DistributedDatabaseService**: Manages tenant databases on current service's DB instance
+- **DistributedTenantDatabaseMiddleware**: Automatic tenant database switching
+- **DistributedDatabaseServiceProvider**: Service registration and configuration
+
+**Database Naming:** `tenant_{tenantId}_{service}`
+
+---
+
+### 🔒 Middleware (22 Components)
+
 **Authentication & Authorization:**
 - **UnifiedAuthenticationMiddleware**: Unified OAuth2 and API key authentication with tenant context
 - **OAuth2TokenValidationMiddleware**: OAuth2 token validation and user context extraction
@@ -18,6 +32,7 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **InputValidationMiddleware**: XSS and injection prevention with request sanitization
 - **CsrfProtectionMiddleware**: CSRF token validation and protection
 - **PayloadSizeLimitMiddleware**: Request payload size validation
+- **BruteForceProtectionMiddleware**: Brute force attack prevention
 
 **Rate Limiting & Performance:**
 - **EnterpriseRateLimitMiddleware**: Advanced enterprise rate limiting
@@ -27,20 +42,19 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **ResponseCachingMiddleware**: Response caching for improved performance
 
 **Multi-tenancy & Database:**
-- **HybridTenantDatabaseMiddleware**: Hybrid tenant database switching
-- **TenantDatabaseMiddleware**: Standard tenant database switching
-- **ProductionTenantDatabaseMiddleware**: Production-optimized tenant database handling
+- **DistributedTenantDatabaseMiddleware**: Distributed tenant database switching (each service has own DB instance)
 
 **Utilities:**
 - **JsonResponseMiddleware**: Consistent JSON response formatting
 - **StructuredLoggingMiddleware**: Structured request/response logging
 - **EnvironmentAwareCorsMiddleware**: Environment-aware CORS handling
 
-### 🛠️ Services (8 Components)
+---
+
+### 🛠️ Services (6 Components)
+
 **Database & Multi-tenancy:**
-- **HybridDatabaseService**: Database-per-service + Database-per-tenant management with automatic provisioning
-- **TenantDatabaseService**: Tenant database lifecycle management
-- **DatabaseConnectionManager**: Dynamic database connection management
+- **DistributedDatabaseService**: Tenant database management for distributed architecture with Docker support
 
 **API & Communication:**
 - **ApiKeyService**: API key management and validation
@@ -52,7 +66,13 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **SecurityAuditService**: Security audit and compliance reporting
 - **SecurityService**: Core security utilities and validation
 
-### 📡 Events System (20+ Event Types)
+**Caching:**
+- **QueryCacheService**: Database query result caching
+
+---
+
+### 📡 Events System (25+ Event Types)
+
 **Event Infrastructure:**
 - **EventBus**: Redis-based event communication with retry mechanisms
 - **EventSubscriber**: Event subscription and handling system
@@ -71,29 +91,25 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **DepartmentCreated/Updated/Deleted**: Department lifecycle events
 - **BranchCreated/Updated/Deleted**: Branch lifecycle events
 
-**Attendance Events:**
-- **AttendanceCheckIn/CheckOut**: Check-in/out events
-- **AttendanceBreakStart/End**: Break management events
-- **ManualEntryRequestCreated/Approved/Rejected/Updated/Deleted**: Manual entry workflow events
+**Other Events:**
+- **AttendanceEvents**: Check-in/out and break management
+- **LeaveEvents**: Leave management
+- **ApprovalEvents**: Approval workflow
+- **IdentityEvents**: User and identity management
 
-**Identity Events:**
-- **UserCreated**: User creation events
-- **IdentityEvents**: Identity service specific events
-
-**Leave Events:**
-- **LeaveEvents**: Leave management related events
+---
 
 ### 🏗️ Base Classes & Utilities
+
 **Base Classes:**
-- **BaseController**: Abstract base controller with tenant awareness and standardized responses
+- **BaseController**: Abstract base controller with tenant awareness
 - **BaseRepository**: Abstract base repository with tenant isolation
 - **BaseService**: Abstract base service class
 
 **Traits (7 Components):**
 - **StandardizedResponseTrait**: Standardized API response methods
 - **EnterpriseApiResponseTrait**: Enterprise-grade API response formatting
-- **TenantAwareTrait**: Tenant-aware functionality for any class
-- **ApiResponseTrait**: Legacy API response methods (deprecated)
+- **TenantAwareTrait**: Tenant-aware functionality
 - **AuditableTrait**: Audit logging capabilities
 - **AuditLogTrait**: Enhanced audit logging
 - **ErrorHandlingTrait**: Centralized error handling
@@ -102,21 +118,7 @@ A comprehensive shared components package for the HRMS microservices ecosystem, 
 - **TenantAwareModel**: Base model with tenant isolation
 - **AuditLog**: Audit log model
 
-### ⚙️ Commands & Configuration
-**Artisan Commands:**
-- **EventWorkerCommand**: Start event worker for processing events
-- **ProcessEventsCommand**: Process events from the event bus
-- **SecurityAuditCommand**: Run security audits
-
-**Configuration Files:**
-- **security.php**: Security configuration (CSRF, rate limiting, etc.)
-- **hybrid-database.php**: Hybrid database configuration
-- **cors.php**: CORS configuration
-- **performance.php**: Performance monitoring configuration
-
-**Helpers & Utilities:**
-- **UuidHelper**: UUID generation utilities
-- **ApiErrorCode**: Standardized API error codes enum
+---
 
 ## 🚀 Installation
 
@@ -128,187 +130,137 @@ composer require hrms/shared
 
 ### Service Provider Registration
 
+In `bootstrap/app.php`:
+
 ```php
-// In bootstrap/app.php
 ->withProviders([
     \Shared\Providers\SharedServicesProvider::class,
-    \Shared\Providers\HybridDatabaseServiceProvider::class,
-    \Shared\Providers\SecurityServiceProvider::class,
+    \Shared\Providers\DistributedDatabaseServiceProvider::class,
 ])
 ```
 
 ### Middleware Usage
 
-**Basic Authentication & Multi-tenancy:**
 ```php
 // In routes/api.php
-Route::middleware(['unified.auth', 'hybrid.tenant'])->group(function () {
-    // Your protected routes with tenant context
+Route::middleware(['tenant.distributed'])->group(function () {
+    // Your tenant-specific routes
+    Route::get('/employees', [EmployeeController::class, 'index']);
 });
 
-// API Key Authentication
-Route::middleware(['api.key.auth', 'api.key.permissions:read,write'])->group(function () {
-    // API key protected routes
-});
-
-// OAuth2 with Scopes
-Route::middleware(['oauth2.token', 'scope:employee.read'])->group(function () {
-    // OAuth2 protected routes with specific scope
+// With authentication
+Route::middleware(['unified.auth', 'tenant.distributed'])->group(function () {
+    // Protected tenant routes
 });
 ```
 
-**Security & Rate Limiting:**
-```php
-// Enterprise Security Stack
-Route::middleware([
-    'security.headers',
-    'input.validation',
-    'csrf.protection',
-    'enterprise.rate.limit',
-    'performance.monitoring'
-])->group(function () {
-    // Highly secured routes
-});
+### Environment Configuration
+
+Each service needs its own database configuration:
+
+```env
+# Service Configuration
+SERVICE_NAME=identity-service  # or employee-service, core-service
+DATABASE_ARCHITECTURE_MODE=distributed
+
+# Database Configuration (Service-specific instance)
+DB_CONNECTION=pgsql
+DB_HOST=identity-db              # Service-specific DB host
+DB_PORT=5432
+DB_DATABASE=hrms_identity
+DB_USERNAME=postgres
+DB_PASSWORD=your_secure_password
+
+# Distributed Database Settings
+DISTRIBUTED_DATABASE_ENABLED=true
+DISTRIBUTED_CONNECTION_POOLING=true
+DISTRIBUTED_MAX_CONNECTIONS=50
+DISTRIBUTED_CONNECTION_TIMEOUT=30
+
+# Docker Settings
+DOCKER_ENABLED=true
+DB_HEALTH_CHECK_ENABLED=true
 ```
 
-### Service Usage
+### Database Service Usage
 
-**Database & Multi-tenancy:**
 ```php
-use Shared\Services\HybridDatabaseService;
-use Shared\Services\TenantDatabaseService;
+use Shared\Services\DistributedDatabaseService;
 
-// Switch to tenant database
-$dbService = app(HybridDatabaseService::class);
-$dbService->switchToTenantDatabase('tenant-123');
+// Create tenant database on current service's DB instance
+$dbService = app(DistributedDatabaseService::class);
+$dbService->createTenantDatabase([
+    'id' => 'tenant-uuid',
+    'name' => 'Acme Corporation',
+    'domain' => 'acme.hrms.local',
+    'is_active' => true,
+]);
 
-// Create tenant database
-$tenantService = app(TenantDatabaseService::class);
-$tenantService->createTenantDatabase($tenantData);
+// Switch to tenant database (done automatically by middleware)
+$dbService->switchToTenantDatabase('tenant-uuid');
+
+// Query tenant data
+$employees = DB::table('employees')->get();
+
+// Switch back to central database
+$dbService->switchToCentralDatabase();
 ```
 
-**Event System:**
+### Event-Driven Tenant Provisioning
+
 ```php
-use Shared\Events\EventBus;
-use Shared\Events\EmployeeCreatedEvent;
+// In Identity Service (tenant creation)
+use Shared\Events\TenantCreatedEvent;
 
-// Publish events
-$eventBus = app(EventBus::class);
-$event = new EmployeeCreatedEvent('tenant-123', $employeeData, $userId);
-$eventBus->publish($event);
+$tenant = Tenant::create([...]);
 
-// Subscribe to events
-$eventBus->subscribe('employee.created', function ($payload, $metadata) {
-    // Handle employee creation
-});
+// Create tenant database on Identity Service
+$dbService->createTenantDatabase($tenant->toArray());
+
+// Publish event for other services
+event(new TenantCreatedEvent(
+    $tenant->id,
+    $tenant->toArray(),
+    auth()->id()
+));
 ```
 
-**API Responses:**
 ```php
-use Shared\Traits\StandardizedResponseTrait;
-
-class EmployeeController extends BaseController
+// In Employee/Core Services (event listener)
+class CreateTenantDatabaseListener
 {
-    use StandardizedResponseTrait;
-    
-    public function index()
+    public function handle(TenantCreatedEvent $event): void
     {
-        return $this->success($employees, 'Employees retrieved successfully');
-    }
-    
-    public function store(Request $request)
-    {
-        // Validation and creation logic
-        return $this->created($employee, 'Employee created successfully');
+        $dbService = app(DistributedDatabaseService::class);
+        $dbService->createTenantDatabase($event->payload);
     }
 }
 ```
 
-**Audit Logging:**
-```php
-use Shared\Services\AuditLogService;
+---
 
-$auditService = app(AuditLogService::class);
+## 🐳 Docker Architecture
 
-// Log authentication events
-$auditService->logAuthenticationEvent('login', $userId, $tenantId, $request);
+Each microservice has its own PostgreSQL container:
 
-// Log data access events
-$auditService->logDataAccessEvent('read', 'employee', $employeeId, $tenantId, $userId, $request);
+```
+├── identity-db (PostgreSQL)
+│   ├── hrms_identity (central)
+│   ├── tenant_uuid1_identity
+│   └── tenant_uuid2_identity
+│
+├── employee-db (PostgreSQL)
+│   ├── hrms_employee (central)
+│   ├── tenant_uuid1_employee
+│   └── tenant_uuid2_employee
+│
+└── core-db (PostgreSQL)
+    ├── hrms_core (central)
+    ├── tenant_uuid1_core
+    └── tenant_uuid2_core
 ```
 
-### Event System Usage
-
-**Publishing Events:**
-```php
-use Shared\Events\EmployeeCreatedEvent;
-use Shared\Events\AttendanceCheckIn;
-
-// Publish employee events
-$event = new EmployeeCreatedEvent($tenantId, $employeeData, $userId);
-event($event);
-
-// Publish attendance events
-$event = new AttendanceCheckIn($tenantId, $attendanceData, $userId);
-event($event);
-```
-
-**Event Workers:**
-```bash
-# Start event worker
-php artisan events:worker --service=employee-service
-
-# Process events
-php artisan events:process --service=core-service --timeout=60
-```
-
-### Configuration
-
-**Publish Configuration Files:**
-```bash
-php artisan vendor:publish --provider="Shared\Providers\SharedServicesProvider"
-```
-
-**Environment Variables:**
-```env
-# Service Configuration
-SERVICE_NAME=employee-service
-TENANT_DATABASE_PREFIX=hrms_tenant_
-
-# Security Configuration
-CSRF_PROTECTION=true
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_BURST=100
-RATE_LIMIT_HOURLY=1000
-
-# Event System
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-```
-
-## 🔧 Advanced Configuration
-
-### Hybrid Database Architecture
-
-The package supports a hybrid database architecture:
-- **Central Database**: Stores tenant metadata, API keys, and shared data
-- **Service Databases**: Each microservice has its own database
-- **Tenant Databases**: Each tenant gets isolated databases per service
-
-### Security Features
-
-- **Enterprise Security Headers**: CSP, HSTS, X-Frame-Options, etc.
-- **Input Sanitization**: Automatic XSS and injection prevention
-- **Rate Limiting**: Multi-tier rate limiting with burst control
-- **Audit Logging**: Comprehensive audit trail with data sanitization
-- **CSRF Protection**: Token-based CSRF protection
-
-### Event-Driven Architecture
-
-- **Redis-based Event Bus**: Reliable event communication
-- **Retry Mechanisms**: Automatic retry with exponential backoff
-- **Event History**: Event persistence and replay capabilities
-- **Multi-service Support**: Events can be consumed across services
+---
 
 ## 🧪 Testing
 
@@ -326,26 +278,63 @@ composer cs-check
 composer cs-fix
 ```
 
+---
+
 ## 📊 Monitoring & Observability
 
-The package includes comprehensive monitoring capabilities:
+**Performance Monitoring:**
+- Request timing and performance metrics
+- Database connection pool monitoring
+- Query performance tracking
 
-- **Performance Monitoring**: Request timing and performance metrics
-- **Structured Logging**: JSON-formatted logs with correlation IDs
-- **Security Auditing**: Automated security compliance checks
-- **Event Tracking**: Complete event lifecycle monitoring
+**Structured Logging:**
+- JSON-formatted logs with correlation IDs
+- Tenant context in all logs
+- Database operation logging
 
-## 🔒 Security Considerations
+**Security Auditing:**
+- Automated security compliance checks
+- Complete audit trail
+- Data access logging
 
-- All sensitive data is automatically sanitized in audit logs
-- API keys are hashed and cached for performance
-- Tenant isolation is enforced at the database level
-- CSRF protection is enabled by default
-- Rate limiting prevents abuse and DoS attacks
+---
+
+## 🔒 Security
+
+**Database Isolation:**
+- Each service has dedicated database instance
+- No cross-service database access
+- Tenant data isolated per service
+
+**Connection Security:**
+- SSL/TLS enabled
+- Per-service credentials
+- Automatic connection cleanup
+
+**Audit Logging:**
+- All database switches logged
+- Connection errors tracked
+- Tenant access monitored
+
+---
+
+## 📞 Support
+
+For detailed documentation, see:
+- [Distributed Architecture Guide](/docs/DISTRIBUTED_ARCHITECTURE_GUIDE.md)
+
+For issues or questions:
+- Check logs: `storage/logs/laravel.log`
+- Enable debug mode: `APP_DEBUG=true`
+- Test database: `php artisan tinker` → `DB::connection()->getPdo()`
+
+---
 
 ## 📄 License
 
 MIT License - see LICENSE file for details.
+
+---
 
 ## 🤝 Contributing
 
@@ -354,7 +343,3 @@ MIT License - see LICENSE file for details.
 3. Make your changes
 4. Run tests and code style checks
 5. Submit a pull request
-
-## 📞 Support
-
-For support and questions, please contact the HRMS development team at dev@hrms.com.

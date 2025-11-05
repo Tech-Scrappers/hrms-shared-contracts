@@ -1,16 +1,14 @@
 {
-    "name": "hrms/shared",
+    "name": "tech-scrappers/hrms-shared",
     "type": "library",
     "description": "HRMS Shared Components Package - Middleware, Services, Events, and Utilities",
     "keywords": ["hrms", "shared", "microservices", "laravel", "middleware"],
     "license": "MIT",
-    "version": "1.0.0",
-    "minimum-stability": "stable",
-    "prefer-stable": true,
+    "version": "1.1.0",
     "authors": [
         {
-            "name": "HRMS Team",
-            "email": "dev@hrms.com"
+            "name": "Koraspond Team",
+            "email": "tech@koraspond.com"
         }
     ],
     "require": {
@@ -21,8 +19,6 @@
         "aws/aws-sdk-php": "^3.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.5.3",
-        "mockery/mockery": "^1.6",
         "laravel/pint": "^1.24"
     },
     "autoload": {
@@ -44,8 +40,6 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
-        "test-coverage": "phpunit --coverage-html coverage",
         "cs-fix": "pint",
         "cs-check": "pint --test"
     },

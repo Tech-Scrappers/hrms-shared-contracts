@@ -45,6 +45,17 @@ trait StandardizedResponseTrait
     }
 
     /**
+     * Create a success response without data key
+     */
+    protected function successNoData(
+        string $message = 'Success',
+        int $statusCode = 200,
+        array $meta = []
+    ): JsonResponse {
+        return $this->getResponseService()->successNoData($message, $statusCode, $meta);
+    }
+
+    /**
      * Create a created response (201)
      */
     protected function created(
@@ -53,6 +64,16 @@ trait StandardizedResponseTrait
         ?string $location = null
     ): JsonResponse {
         return $this->getResponseService()->created($data, $message, $location);
+    }
+
+    /**
+     * Create a created response (201) without data key
+     */
+    protected function createdNoData(
+        string $message = 'Resource created successfully',
+        ?string $location = null
+    ): JsonResponse {
+        return $this->getResponseService()->createdNoData($message, $location);
     }
 
     /**
