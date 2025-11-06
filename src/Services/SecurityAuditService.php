@@ -262,7 +262,9 @@ class SecurityAuditService
                 $tenantServiceDbs = 0;
 
                 foreach ($services as $service) {
-                    $dbName = "tenant_{$tenant->id}_{$service}";
+                    // Sanitize tenant ID for database name (replace hyphens with underscores)
+                    $sanitizedTenantId = str_replace('-', '_', $tenant->id);
+                    $dbName = "tenant_{$sanitizedTenantId}_{$service}";
                     $exists = DB::connection('pgsql')
                         ->select('SELECT 1 FROM pg_database WHERE datname = ?', [$dbName]);
 

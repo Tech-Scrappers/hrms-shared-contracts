@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-11-06
+
+### Fixed
+- Fixed tenant database naming convention to properly sanitize UUIDs (hyphens to underscores)
+- Updated DistributedDatabaseService to sanitize tenant IDs in database names
+- Updated DistributedTenantDatabaseMiddleware to match production database naming
+- Updated SecurityAuditService to use sanitized tenant IDs for database checks
+- Updated TenantAwareModel to properly sanitize tenant IDs in connection configuration
+- Ensures compatibility with PostgreSQL database naming requirements in production
+
 ## [1.1.0] - 2025-11-05
 
 ### Added
